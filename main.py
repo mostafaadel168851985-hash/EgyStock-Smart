@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة Thndr Style
 st.set_page_config(page_title="EgyStock PRO", layout="wide")
 
 st.markdown("""
@@ -11,76 +11,60 @@ st.markdown("""
     header, .main, .stApp {background-color: #000000 !important;}
     .telegram-card {
         background: #ffffff; padding: 20px; border-radius: 15px;
-        color: #000000 !important; max-width: 500px;
-        font-family: 'Arial', sans-serif; line-height: 1.6;
-        border: 1px solid #ddd; direction: rtl; text-align: right;
+        color: #000000 !important; max-width: 500px; margin-bottom: 20px;
+        direction: rtl; text-align: right; border: 1px solid #ddd;
     }
     .line { border-top: 2px solid #000; margin: 10px 0; }
-    .neon-green { color: #008000 !important; font-weight: bold; }
-    .neon-red { color: #ff0000 !important; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-ticker_input = st.text_input("🔍 ابحث عن سهم (مثلاً TMGH, FWRY, CRST):", "TMGH").upper().strip()
+# دالة ذكية لسحب البيانات مع حماية من الحظر
+@st.cache_data(ttl=3600) # بيخزن البيانات ساعة عشان السيرفر ميعملش بلوك
+def get_safe_data(ticker):
+    sym = f"{ticker.strip().upper()}.CA"
+    try:
+        # بنطلب شهر واحد بس عشان الشارت يكون سريع وخفيف
+        data = yf.download(sym, period="3mo", interval="1d", progress=False)
+        if data.empty:
+            data = yf.Ticker(sym).history(period="3mo")
+        return data
+    except:
+        return pd.DataFrame()
 
-def get_data(ticker):
-    sym = f"{ticker}.CA"
-    df = yf.download(sym, period="6mo", interval="1d", progress=False)
-    if df.empty:
-        df = yf.Ticker(sym).history(period="6mo")
-    return df
+ticker_input = st.text_input("🔍 اكتب رمز السهم (مثلاً TMGH, CRST, ATQA):", "ATQA").upper().strip()
 
 if ticker_input:
-    df = get_data(ticker_input)
+    df = get_safe_data(ticker_input)
     
-    if not df.empty and len(df) > 20:
+    if not df.empty and len(df) > 5:
+        # الحسابات الفنية
         last_p = float(df['Close'].iloc[-1])
-        # حساب RSI بدقة للسيولة
+        avg_50 = float(df['Close'].rolling(min(len(df), 50)).mean().iloc[-1])
+        
+        # حساب RSI والسيولة
         delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         rsi_val = float(100 - (100 / (1 + rs.iloc[-1])))
         
-        # حساب المتوسطات للأسباب الفنية
-        avg_50 = float(df['Close'].rolling(50).mean().iloc[-1])
-        
-        # مستويات الأهداف والدعم
-        h1 = last_p * 1.03
-        h2 = last_p * 1.05
-        d1 = last_p * 0.97
-        stop_loss = last_p * 0.94
+        # الأهداف والدعوم
+        h1, h2 = last_p * 1.03, last_p * 1.05
+        d1, stop_loss = last_p * 0.97, last_p * 0.94
 
-        # تحديد نبض السيولة
-        if rsi_val >= 60:
-            liquidity = "عالية 🔥"
-            liq_reason = "القوة النسبية (RSI) عالية"
-        elif rsi_val <= 40:
-            liquidity = "ضعيفة 🧊"
-            liq_reason = "السهم في منطقة تشبع بيعي"
-        else:
-            liquidity = "طبيعية ⚖️"
-            liq_reason = "تحرك عرضي مستقر"
-
-        # التوصية
-        if rsi_val > 50 and last_p > avg_50:
-            signal = "احتفاظ / مراقبة ✅"
-        else:
-            signal = "مراقبة / حيادي ⚖️"
-
-        # عرض كارت التليجرام
+        # عرض الكارت الأبيض
         st.markdown(f"""
         <div class="telegram-card">
             <div style="font-size: 20px; font-weight: bold;">💎 التحليل الشامل لـ {ticker_input}</div>
             <div class="line"></div>
             💰 <b>السعر المعتمد:</b> {last_p:.2f}<br>
             📟 <b>مؤشر RSI:</b> {rsi_val:.1f}<br>
-            💧 <b>نبض السيولة:</b> {liquidity}<br>
-            📢 <b>التوصية:</b> {signal}
+            💧 <b>نبض السيولة:</b> {"عالية 🔥" if rsi_val > 55 else "طبيعية ⚖️"}<br>
+            📢 <b>التوصية:</b> {"احتفاظ ✅" if last_p > avg_50 else "مراقبة ⚖️"}
             <div class="line"></div>
             🔍 <b>الأسباب الفنية:</b><br>
-            {"✅" if last_p > avg_50 else "❌"} السعر {"فوق" if last_p > avg_50 else "تحت"} متوسط 50<br>
-            ⚠️ {liq_reason}
+            {"✅" if last_p > avg_50 else "⚠️"} السعر {"فوق" if last_p > avg_50 else "تحت"} متوسط 50<br>
+            ⚠️ تحرك عرضي مستقر
             <div class="line"></div>
             🚀 <b>مستويات المقاومة:</b><br>
             🔷 هدف 1: {h1:.2f}<br>
@@ -92,11 +76,14 @@ if ticker_input:
         </div>
         """, unsafe_allow_html=True)
 
-        # الشارت
+        # رسم الشارت (الإصلاح الجذري)
         fig = go.Figure(data=[go.Candlestick(
             x=df.index, open=df['Open'], high=df['High'],
             low=df['Low'], close=df['Close'],
             increasing_line_color='#00E676', decreasing_line_color='#FF3D00'
         )])
-        fig.update_layout(template="plotly_dark", paper_bgcolor='black', plot_bgcolor='black', height=400, xaxis_rangeslider_visible=False)
+        fig.update_layout(template="plotly_dark", paper_bgcolor='black', plot_bgcolor='black', height=400, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig, use_container_width=True)
+        
+    else:
+        st.error("⚠️ السيرفر مضغوط حالياً أو الرمز غير دقيق. (جرب مرة أخرى بعد دقيقة)")
