@@ -4,123 +4,144 @@ import pandas as pd
 import pandas_ta as ta
 
 # إعداد الصفحة
-st.set_page_config(page_title="EGX Sniper Pro", page_icon="🎯", layout="centered")
+st.set_page_config(page_title="EGX Pro Sniper v6", page_icon="🎯", layout="centered")
 
-# --- تنسيق الواجهة (إصلاح الأخطاء السابقة) ---
+# --- التنسيق البصري النهائي (إصلاح كل العيوب) ---
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #000000 !important;}
     
-    /* الكارت الأبيض - نظيف تماماً */
+    /* الكارت الأبيض الشامل */
     .report-card { 
         background: white; padding: 25px; border-radius: 15px; 
         color: black; direction: rtl; text-align: right; 
         margin-bottom: 20px; border-top: 8px solid #1a73e8;
     }
     
-    .price-val { font-size: 50px; color: #d32f2f; font-weight: 900; font-family: monospace; }
+    .price-big { font-size: 55px; color: #d32f2f; font-weight: 900; font-family: monospace; line-height: 1; }
     
-    /* لوحة التحليل اليدوي - منورة */
-    .manual-header {
-        background: white; color: black; padding: 15px; 
-        border-radius: 10px; text-align: center; margin: 20px 0;
-        font-weight: bold; font-size: 20px; border: 2px solid #1a73e8;
+    /* إبراز عناوين الإدخال اليدوي */
+    label { 
+        color: white !important; 
+        font-size: 18px !important; 
+        font-weight: bold !important; 
+        text-shadow: 1px 1px 2px black;
+    }
+
+    /* عنوان لوحة القناص اليدوية */
+    .manual-header-bright {
+        background: white; color: #1a73e8; padding: 15px; 
+        border-radius: 12px; text-align: center; margin: 25px 0;
+        font-weight: 900; font-size: 22px; border: 4px solid #1a73e8;
     }
     
-    .manual-box {
-        background: #111; padding: 20px; border-radius: 12px; 
-        border: 1px solid #333; color: white;
-    }
-    
-    .whatsapp-container {
-        border: 2px solid #25d366; padding: 15px; border-radius: 10px;
-        background: #050505; color: #25d366; margin-top: 15px;
+    .whatsapp-btn {
+        background-color: #25d366; color: white; padding: 15px;
+        border-radius: 10px; text-align: center; font-weight: bold;
+        margin-top: 20px; border: none; width: 100%; display: block;
+        text-decoration: none;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- الوظيفة الآلية ---
-def get_auto(ticker):
+# --- وظائف التحليل الآلي ---
+def get_analysis(ticker):
     try:
         symbol = f"{ticker.upper()}.CA"
         stock = yf.Ticker(symbol)
-        df = stock.history(period="100d")
+        df = stock.history(period="150d")
         if df.empty: return None
+        
         p = df['Close'].iloc[-1]
         prev = df['Close'].iloc[-2]
         rsi = ta.rsi(df['Close'], length=14).iloc[-1]
-        return {"p": p, "prev": prev, "rsi": rsi, "vol": (df['Volume'].iloc[-1]*p)/1_000_000}
+        
+        # حساب الاتجاهات
+        ma50 = df['Close'].rolling(50).mean().iloc[-1]
+        ma20 = df['Close'].rolling(20).mean().iloc[-1]
+        trend = "صاعد 🟢" if p > ma50 else "هابط 🔴"
+        advice = "شراء / احتفاظ ✅" if rsi < 65 and p > ma20 else "مراقبة / حذر ⚠️"
+        
+        return {
+            "p": p, "prev": prev, "rsi": rsi, 
+            "vol": (df['Volume'].iloc[-1]*p)/1_000_000,
+            "trend": trend, "advice": advice
+        }
     except: return None
 
-# --- واجهة المستخدم ---
-st.markdown("<h1 style='text-align:center; color:white;'>💎 رادار البورصة الذكي</h1>", unsafe_allow_html=True)
-u_input = st.text_input("🔍 ادخل الرمز (ATQA, MOED, CRST):", "").strip().upper()
+# --- واجهة البرنامج ---
+st.markdown("<h1 style='text-align:center; color:white;'>🌊 رادار السيولة والقناص الرقمي</h1>", unsafe_allow_html=True)
+u_input = st.text_input("🔍 ادخل رمز السهم (مثلاً TMGH, MOED, CRST):", "").strip().upper()
 
 if u_input:
-    auto = get_auto(u_input)
-    final_report = ""
+    auto_data = get_analysis(u_input)
+    msg_to_share = ""
 
-    # 1. عرض التقرير الآلي (لو متاح)
-    if auto:
-        p = auto['p']
-        change = ((p - auto['prev']) / auto['prev']) * 100
+    # 1. التقرير الآلي
+    if auto_data:
+        p = auto_data['p']
+        change = ((p - auto_data['prev']) / auto_data['prev']) * 100
         st.markdown(f"""
         <div class="report-card">
-            <h2 style="margin:0;">📊 تقرير {u_input} اللحظي</h2>
-            <div class="price-val">{p:.3f}</div>
-            <b style="color:{'green' if change > 0 else 'red'};">{change:+.2f}%</b>
-            <p>RSI: {auto['rsi']:.1f} | سيولة: {auto['vol']:.2f}M</p>
+            <h2 style="margin:0;">💎 التقرير الشامل لـ {u_input}</h2>
+            <div class="price-big">{p:.3f}</div>
+            <b style="color:{'green' if change > 0 else 'red'}; font-size:20px;">{change:+.2f}%</b>
+            <p>RSI: {auto_data['rsi']:.1f} | سيولة الجلسة: {auto_data['vol']:.2f}M</p>
+            <hr>
+            <b>🔍 الاتجاه العام:</b> {auto_data['trend']}<br>
+            <b>📢 التوصية:</b> {auto_data['advice']}<br>
             <hr>
             <b>🚀 الأهداف:</b> {p*1.03:.3f} | {p*1.06:.3f}<br>
             <b>🛡️ الدعوم:</b> {p*0.97:.3f} | {p*0.95:.3f}<br>
-            <b>🛑 الوقف:</b> {p*0.94:.3f}
+            <b>🛑 وقف الخسارة:</b> {p*0.94:.3f}
         </div>
         """, unsafe_allow_html=True)
-        final_report = f"تحليل {u_input}:\nسعر: {p:.3f}\nهدف: {p*1.03:.3f}\nوقف: {p*0.94:.3f}"
+        msg_to_share = f"🎯 تحليل {u_input}:\n💰 السعر: {p:.3f}\n📈 الاتجاه: {auto_data['trend']}\n🚀 الأهداف: {p*1.03:.3f} - {p*1.06:.3f}\n🛑 الوقف: {p*0.94:.3f}"
 
-    # 2. لوحة التحليل اليدوي (منورة أبيض)
-    st.markdown(f'<div class="manual-header">🛠️ لوحة القناص اليدوية لـ {u_input}</div>', unsafe_allow_html=True)
+    # 2. لوحة القناص اليدوية (العناوين بارزة جداً)
+    st.markdown(f'<div class="manual-header-bright">🛠️ لوحة القناص اليدوية لـ {u_input}</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.markdown('<div class="manual-box">', unsafe_allow_html=True)
-        col1, col2, col3 = st.columns(3)
-        with col1: m_p = st.number_input("السعر الآن:", format="%.3f", key="n1")
-        with col2: m_h = st.number_input("أعلى سعر اليوم:", format="%.3f", key="n2")
-        with col3: m_l = st.number_input("أقل سعر اليوم:", format="%.3f", key="n3")
+        # استخدام columns لتنظيم الخانات بشكل بارز
+        c1, c2, c3 = st.columns(3)
+        with c1: m_price = st.number_input("💵 السعر الآن:", format="%.3f", key="v1")
+        with c2: m_high = st.number_input("🔝 أعلى سعر اليوم:", format="%.3f", key="v2")
+        with c3: m_low = st.number_input("📉 أقل سعر اليوم:", format="%.3f", key="v3")
         
-        col4, col5, col6 = st.columns(3)
-        with col4: m_prev = st.number_input("إغلاق أمس:", format="%.3f", key="n4")
-        with col5: m_mh = st.number_input("أعلى سعر شهر:", format="%.3f", key="n5")
-        with col6: m_vol = st.number_input("سيولة اليوم (M):", format="%.2f", key="n6")
-        st.markdown('</div>', unsafe_allow_html=True)
+        c4, c5, c6 = st.columns(3)
+        with c4: m_close = st.number_input("↩️ إغلاق أمس:", format="%.3f", key="v4")
+        with c5: m_mhigh = st.number_input("🗓️ أعلى سعر شهر:", format="%.3f", key="v5")
+        with c6: m_v = st.number_input("💧 سيولة اليوم (M):", format="%.2f", key="v6")
 
-        if m_p > 0 and m_h > 0:
-            # معادلات الارتكاز (Pivot)
-            pivot = (m_h + m_l + m_p) / 3
-            r1 = (2 * pivot) - m_l
-            s1 = (2 * pivot) - m_h
+        if m_price > 0 and m_high > 0:
+            # حسابات احترافية للمضارب والمستثمر
+            pivot = (m_high + m_low + m_price) / 3
+            r1 = (2 * pivot) - m_low
+            s1 = (2 * pivot) - m_high
+            inv_target = m_mhigh * 1.10 # هدف استثماري 10% فوق القمة الشهرية
             
             st.markdown(f"""
-            <div class="report-card" style="border-top-color:#00c853;">
+            <div class="report-card" style="border-top-color: #00c853;">
                 <h2 style="margin:0;">✅ نتيجة التحليل اليدوي</h2>
-                <div class="price-val">{m_p:.3f}</div>
+                <div class="price-big">{m_price:.3f}</div>
                 <hr>
-                <b>📍 نقطة الارتكاز:</b> {pivot:.3f}<br>
-                <b>🎯 هدف المضارب:</b> {r1:.3f}<br>
-                <b>🛡️ دعم المضارب:</b> {s1:.3f}<br>
-                <p style="color:blue;">(السهم إيجابي طول ما هو فوق الارتكاز)</p>
+                <b>🎯 هدف المضارب اللحظي:</b> {r1:.3f}<br>
+                <b>🛡️ دعم المضارب القوي:</b> {s1:.3f}<br>
+                <b>📍 نقطة الارتكاز (Pivot):</b> {pivot:.3f}<br>
+                <hr>
+                <b>🏢 هدف المستثمر (متوسط):</b> {inv_target:.3f}<br>
+                <b>📊 حالة السيولة:</b> {"قوية 🔥" if m_v > 5 else "هادئة ⚖️"}
             </div>
             """, unsafe_allow_html=True)
-            final_report = f"تحليل يديوي {u_input}:\nسعر: {m_p:.3f}\nهدف: {r1:.3f}\nدعم: {s1:.3f}\nارتكاز: {pivot:.3f}"
+            msg_to_share = f"🛠️ تحليل يدوي {u_input}:\n💰 السعر: {m_price:.3f}\n🎯 هدف لحظي: {r1:.3f}\n🏢 هدف مستثمر: {inv_target:.3f}\n📍 الارتكاز: {pivot:.3f}"
 
-    # 3. صندوق النسخ للواتساب
-    if final_report:
-        st.markdown(f"""
-        <div class="whatsapp-container">
-            <b>📱 التقرير جاهز للنسخ:</b><br><br>
-            {final_report.replace('\n', '<br>')}
-        </div>
-        """, unsafe_allow_html=True)
-        st.button("انسخ النص وشاركه 🚀")
+    # 3. زر الواتساب (يظهر في النهاية)
+    if msg_to_share:
+        st.write("---")
+        st.markdown(f'<div style="color:white; font-weight:bold; margin-bottom:10px;">📱 شارك التقرير على واتساب:</div>', unsafe_allow_html=True)
+        st.text_area("انسخ هذا النص:", msg_to_share, height=120)
+        # رابط واتساب مباشر (اختياري)
+        whatsapp_url = f"https://wa.me/?text={msg_to_share.replace(' ', '%20').replace('', '%0A')}"
+        st.markdown(f'<a href="{whatsapp_url}" class="whatsapp-btn">🚀 إرسال مباشر لواتساب</a>', unsafe_allow_html=True)
 
-st.caption("EGX Smart Sniper v5.0 | مصطفى عادل")
+st.caption("EGX Ultimate Sniper v6.0 | مصطفى عادل 2026")
