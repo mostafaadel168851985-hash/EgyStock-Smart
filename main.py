@@ -1,115 +1,102 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
 import yfinance as yf
 import pandas as pd
+from datetime import datetime
 
-# 1. تصميم الواجهة (نفس شكل كروت التليجرام الاحترافية)
-st.set_page_config(page_title="EGX Live Analyst", page_icon="💹")
+# 1. إعدادات الواجهة الاحترافية
+st.set_page_config(page_title="Pro Stock Analyst", page_icon="💹")
 
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #000000 !important;}
-    .brand-title { color: #FFFFFF !important; font-family: 'Arial'; font-size: 30px; text-align: center; margin: 15px 0; }
+    .brand-title { color: #FFFFFF !important; font-family: 'Arial'; font-size: 28px; text-align: center; margin: 10px 0; }
     .telegram-card {
-        background: #ffffff; padding: 20px; border-radius: 15px;
+        background: #ffffff; padding: 25px; border-radius: 12px;
         color: #000000 !important; max-width: 450px;
         direction: rtl; text-align: right; margin: auto;
-        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-family: 'Segoe UI', sans-serif; box-shadow: 0px 4px 15px rgba(255,255,255,0.1);
     }
-    .price-val { font-size: 48px; color: #d32f2f; font-weight: 900; font-family: 'monospace'; }
-    .line { border-top: 1px solid #eee; margin: 10px 0; }
+    .price-val { font-size: 52px; color: #d32f2f; font-weight: 900; font-family: 'monospace'; line-height: 1; }
+    .line { border-top: 1px solid #f0f0f0; margin: 15px 0; }
     #MainMenu, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-def get_live_mubasher(ticker):
-    """سحب السعر اللحظي والسيولة من مباشر مع حماية من الحظر"""
+def get_data_v3(ticker):
     try:
-        session = requests.Session()
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        url = f"https://www.mubasher.info/markets/EGX/stocks/{ticker}"
-        response = session.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # تحويل الرمز ليعمل مع ياهو فاينانس (بورصة مصر)
+        symbol = f"{ticker.upper()}.CA"
+        stock = yf.Ticker(symbol)
         
-        # البحث عن السعر بدقة (الكسر العشري)
-        price_tag = soup.find('div', {'class': 'market-summary__last-price'})
-        change_tag = soup.find('div', {'class': 'market-summary__change-percent'})
-        turnover_tag = soup.find('div', {'class': 'market-summary__value'})
+        # سحب بيانات لحظية (فاصل دقيقة واحدة) لضمان أحدث سعر
+        df_now = stock.history(period="1d", interval="1m")
+        # سحب بيانات تاريخية للتحليل
+        df_hist = stock.history(period="30d")
         
-        if price_tag:
-            p = float(price_tag.text.strip().replace(',', ''))
-            c = change_tag.text.strip()
-            t = turnover_tag.text.strip()
-            return p, c, t
-    except:
-        return None, None, None
+        if df_now.empty or df_hist.empty: return None
 
-def get_technical_vibes(ticker, current_price, turnover_text):
-    """تحليل الاتجاه والسيولة النسبية"""
-    try:
-        stock = yf.Ticker(f"{ticker}.CA")
-        df = stock.history(period="30d")
-        if df.empty: return "غير محدد", "طبيعية ⚖️", "مراقبة"
-
-        # 1. الاتجاه (باستخدام المتوسط المتحرك 20)
-        ma20 = df['Close'].rolling(20).mean().iloc[-1]
+        # 1. السعر اللحظي (آخر تنفيذة في الدقيقة الحالية)
+        current_price = float(df_now['Close'].iloc[-1])
+        prev_close = stock.info.get('previousClose', df_hist['Close'].iloc[-2])
+        change_pct = ((current_price - prev_close) / prev_close) * 100
+        
+        # 2. تحليل الاتجاه (المتوسطات)
+        ma20 = df_hist['Close'].rolling(20).mean().iloc[-1]
         trend = "صاعد 📈" if current_price > ma20 else "هابط 📉"
-
-        # 2. تحليل السيولة (تحويل نص مباشر لرقم للمقارنة)
-        curr_val = 0
-        t_txt = turnover_text.upper()
-        if 'M' in t_txt: curr_val = float(t_txt.replace('M','')) * 1_000_000
-        elif 'K' in t_txt: curr_val = float(t_txt.replace('K','')) * 1_000
-        else: curr_val = float(t_txt.replace(',',''))
         
-        avg_val = (df['Close'] * df['Volume']).tail(10).mean()
-        ratio = curr_val / avg_val if avg_val > 0 else 1
+        # 3. حساب السيولة الذكية (مقارنة حجم التداول اللحظي بالمتوسط)
+        # Turnover = Price * Volume
+        today_volume = df_now['Volume'].sum() # حجم تداول اليوم حتى الآن
+        avg_daily_volume = df_hist['Volume'].tail(10).mean()
         
+        liq_ratio = today_volume / avg_daily_volume if avg_daily_volume > 0 else 1
         liq_status = "طبيعية ⚖️"
-        if ratio > 1.8: liq_status = "انفجارية 🔥🚀"
-        elif ratio > 1.3: liq_status = "عالية 🔥"
+        if liq_ratio > 1.7: liq_status = "انفجارية 🔥🚀"
+        elif liq_ratio > 1.2: liq_status = "عالية 🔥"
         
-        # 3. التوصية بناءً على (السعر + الاتجاه + السيولة)
-        rec = "مراقبة 🛡️"
-        if trend == "صاعد 📈" and ratio > 1.2: rec = "شراء / احتفاظ ✅"
-        elif trend == "هابط 📉" and ratio > 1.5: rec = "تسييل / حذر ⚠️"
-
-        return trend, liq_status, rec
+        return {
+            "p": current_price, "c": f"{change_pct:+.2f}%",
+            "t": trend, "l": liq_status, "v": today_volume * current_price,
+            "r": liq_ratio
+        }
     except:
-        return "جاري التحليل", "طبيعية ⚖️", "مراقبة"
+        return None
 
-st.markdown('<div class="brand-title">🚀 EGX Smart Live Analyst</div>', unsafe_allow_html=True)
-ticker = st.text_input("🔍 ادخل الرمز (مثلاً: MOED, ATQA, TMGH):", "").strip().upper()
+st.markdown('<div class="brand-title">📈 My Smart Stock Helper</div>', unsafe_allow_html=True)
+ticker_in = st.text_input("🔍 ادخل الرمز (MOED, ATQA, CRST):", "").strip().upper()
 
-if ticker:
-    with st.spinner('بنجيب السعر اللحظي من شاشة التداول...'):
-        p_live, c_live, t_live = get_live_mubasher(ticker)
+if ticker_in:
+    with st.spinner('جاري جلب البيانات من السيرفر العالمي...'):
+        data = get_data_v3(ticker_in)
+    
+    if data:
+        p = data['p']
+        # حساب الأهداف والدعوم (دقة 3 أرقام عشرية)
+        h1, h2 = p * 1.03, p * 1.05
+        d1, stop = p * 0.97, p * 0.94
         
-    if p_live:
-        trend, liq, recommendation = get_technical_vibes(ticker, p_live, t_live)
-        
-        # حساب الأهداف (3% و 5%)
-        h1, h2 = p_live * 1.03, p_live * 1.05
-        d1, stop = p_live * 0.97, p_live * 0.94
+        # محرك التوصية
+        rec = "مراقبة 🛡️"
+        if data['t'] == "صاعد 📈" and data['r'] > 1.1: rec = "شراء / احتفاظ ✅"
+        elif data['t'] == "هابط 📉": rec = "خروج / حذر ⚠️"
 
         st.markdown(f"""
         <div class="telegram-card">
-            <b>💎 تقرير {ticker} اللحظي</b>
+            <b>💎 التقرير الفني لـ {ticker_in}</b>
             <div class="line"></div>
-            💰 <b>السعر اللحظي (مباشر):</b>
-            <span class="price-val">{p_live:.3f}</span>
-            📈 <b>التغير:</b> <span style="color:{"green" if "+" in c_live else "red"}; font-weight:bold;">{c_live}</span>
+            💰 <b>السعر اللحظي:</b>
+            <span class="price-val">{p:.3f}</span>
+            📈 <b>التغير:</b> <span style="color:{"green" if "+" in data['c'] else "red"}; font-weight:bold;">{data['c']}</span>
             <div class="line"></div>
-            🧭 <b>الاتجاه الحالي:</b> <b>{trend}</b><br>
-            💧 <b>قوة السيولة:</b> <b>{liq}</b><br>
-            📊 <b>تداولات اليوم:</b> {t_live} ج.م
+            🧭 <b>اتجاه السهم:</b> <b>{data['t']}</b><br>
+            💧 <b>نبض السيولة:</b> <b>{data['l']}</b><br>
+            💵 <b>قيمة التداول:</b> {data['v']/1_000_000:.2f} مليون ج.م
             <div class="line"></div>
-            🚀 <b>المستهدفات:</b> {h1:.3f} | {h2:.3f}<br>
-            🛑 <b>وقف الخسارة: {stop:.3f}</b>
+            🚀 <b>الأهداف:</b> {h1:.3f} | {h2:.3f}<br>
+            🛡️ <b>الدعم:</b> {d1:.3f} | 🛑 <b>الوقف: {stop:.3f}</b>
             <div class="line"></div>
-            📢 <b>التوصية:</b> <span style="font-size: 20px; color: #d32f2f; font-weight: bold;">{recommendation}</span>
+            📢 <b>التوصية:</b> <span style="font-size: 20px; font-weight: bold; color: #d32f2f;">{rec}</span>
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.error("⚠️ الموقع لا يستجيب حالياً، جرب كتابة الرمز مرة أخرى (MOED).")
+        st.error("❌ تعذر الوصول للبيانات. تأكد من الرمز أو حاول مرة أخرى.")
