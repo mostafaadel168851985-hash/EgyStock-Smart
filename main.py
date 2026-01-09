@@ -4,8 +4,8 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-# إعدادات الواجهة
-st.set_page_config(page_title="EgyStock Live", layout="wide")
+# تنسيق الواجهة (Black & White)
+st.set_page_config(page_title="EgyStock Ultra Live", layout="wide")
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #000000 !important;}
@@ -13,63 +13,82 @@ st.markdown("""
         background: #ffffff; padding: 20px; border-radius: 15px;
         color: #000000 !important; max-width: 500px;
         direction: rtl; text-align: right; border: 1px solid #ddd;
-        margin: auto; font-family: Arial, sans-serif;
+        margin: auto; box-shadow: 0px 4px 15px rgba(255,255,255,0.1);
     }
     .line { border-top: 2px solid #000; margin: 10px 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# دالة سحب السعر من مصادر بديلة (Investing/Mubasher style) لو ياهو فشل
-def get_backup_price(ticker):
-    # محاولة سحب السعر مباشرة من جوجل فاينانس (أسرع وأدق للأكواد الجديدة)
+def get_live_price_mubasher(ticker):
+    """سحب السعر مباشرة من موقع مباشر مصر"""
+    try:
+        # رابط البحث في مباشر مصر عن السهم
+        url = f"https://www.mubasher.info/markets/EGX/stocks/{ticker}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # محاولة إيجاد السعر في الكلاسات المشهورة لمباشر
+        price_tag = soup.find('div', {'class': 'market-summary__last-price'})
+        if price_tag:
+            return float(price_tag.text.strip().replace(',', ''))
+        return None
+    except:
+        return None
+
+def get_live_price_google(ticker):
+    """سحب السعر من جوجل فاينانس كبديل ثانٍ"""
     try:
         url = f"https://www.google.com/finance/quote/{ticker}:EGX"
         response = requests.get(url, timeout=5)
         soup = BeautifulSoup(response.text, 'html.parser')
-        # البحث عن كلاس السعر في جوجل
-        price = soup.find('div', {'class': 'YMlS7e'}).text
-        return float(price.replace(',', ''))
+        price_tag = soup.find('div', {'class': 'YMlS7e'})
+        if price_tag:
+            return float(price_tag.text.replace('EGP', '').replace(',', '').strip())
+        return None
     except:
         return None
 
-def get_data_engine(ticker):
-    sym = f"{ticker.upper()}.CA"
-    # محاولة ياهو أولاً للبيانات التاريخية
-    t = yf.Ticker(sym)
-    df = t.history(period="1d")
-    
-    live_price = None
-    if df.empty:
-        # لو ياهو معرفش يوصل للسهم (زي CRST)، بنروح نجيبه من جوجل/مباشر
-        live_price = get_backup_price(ticker)
-    else:
-        live_price = df['Close'].iloc[-1]
-        
-    return live_price
-
-st.title("🚀 رادار البورصة المصرية المباشر")
-ticker_input = st.text_input("اكتب رمز السهم (مثال: CRST, MOED, TMGH):", "MOED").strip().upper()
+st.title("🛡️ رادار البورصة المصرية (مباشر +)")
+ticker_input = st.text_input("اكتب رمز السهم (مثال: CRST, MOED, FWRY):", "CRST").strip().upper()
 
 if ticker_input:
-    with st.spinner('جاري جلب السعر اللحظي...'):
-        price = get_data_engine(ticker_input)
-    
+    with st.spinner('جاري البحث في مباشر، جوجل، وياهو...'):
+        # 1. جرب مباشر أولاً (الأدق)
+        price = get_live_price_mubasher(ticker_input)
+        source = "مباشر مصر 📈"
+        
+        # 2. لو منفعش جرب جوجل
+        if not price:
+            price = get_live_price_google(ticker_input)
+            source = "جوجل فاينانس 🌐"
+            
+        # 3. لو منفعش جرب ياهو (كحل أخير)
+        if not price:
+            try:
+                data = yf.Ticker(f"{ticker_input}.CA").history(period="1d")
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+                    source = "ياهو فاينانس 🛡️"
+            except:
+                pass
+
     if price:
-        # الحسابات بدقة 3 أرقام عشان MOED
+        # حسابات الأهداف بدقة 3 أرقام
         h1, h2 = price * 1.03, price * 1.05
         d1, stop_loss = price * 0.97, price * 0.94
 
         st.markdown(f"""
         <div class="telegram-card">
-            <div style="font-size: 22px; font-weight: bold;">💎 تحليل {ticker_input} (سعر مباشر)</div>
+            <div style="font-size: 22px; font-weight: bold;">💎 التحليل الشامل لـ {ticker_input}</div>
             <div class="line"></div>
-            💰 <b>السعر الحالي:</b> <span style="font-size:24px; color:#d32f2f;">{price:.3f}</span> EGP<br>
-            📟 <b>المصدر:</b> مباشر من شاشة البورصة ✅<br>
-            💧 <b>السيولة:</b> يتم رصدها..
+            💰 <b>السعر اللحظي:</b> <span style="font-size:26px; color:#d32f2f;">{price:.3f}</span><br>
+            📟 <b>المصدر:</b> {source}<br>
+            💧 <b>حالة التحديث:</b> لحظي الآن ✅
             <div class="line"></div>
             🔍 <b>الأسباب الفنية:</b><br>
-            ✅ السعر محدث بدقة 3 أرقام عشرية<br>
-            🚀 السهم متاح للتداول اللحظي
+            ✅ تم جلب البيانات من أقوى المصادر<br>
+            ⚠️ السعر محدث بدقة 3 أرقام عشرية
             <div class="line"></div>
             🚀 <b>الأهداف:</b><br>
             🔷 هدف 1: {h1:.3f}<br>
@@ -81,6 +100,6 @@ if ticker_input:
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.error(f"⚠️ تعذر العثور على {ticker_input}. تأكد من الرمز الصحيح من موقع البورصة.")
+        st.error(f"⚠️ السهم {ticker_input} غير موجود حالياً في أي مصدر. تأكد من كتابة الرمز الصحيح (مثل CRST وليس CRST.CA).")
 
-st.info("💡 الكود الآن يبحث في ياهو فاينانس وجوجل فاينانس معاً لضمان إيجاد الأسهم الجديدة.")
+st.info("💡 ملاحظة: الكود الآن يستخدم 'مباشر مصر' و 'جوجل' و 'ياهو' معاً لضمان عدم ضياع أي سهم.")
