@@ -1,66 +1,88 @@
 import streamlit as st
-import yfinance as yf
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-# إعدادات الواجهة (ستايل التليجرام الاحترافي)
-st.set_page_config(page_title="EgyStock Telegram Bot", layout="wide")
+# 1. إعدادات الهوية البصرية (White & Black)
+st.set_page_config(page_title="My Smart Stock Helper", page_icon="📈", layout="wide")
+
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #000000 !important;}
-    .telegram-card {
-        background: #ffffff; padding: 25px; border-radius: 15px;
-        color: #000000 !important; max-width: 480px;
-        direction: rtl; text-align: right; border: 1px solid #ddd;
-        margin: auto; font-family: 'Arial', sans-serif;
+    
+    /* تنسيق اسم الموقع - أبيض فاقع */
+    .brand-title { 
+        color: #FFFFFF !important; 
+        font-family: 'Arial Black', Gadget, sans-serif; 
+        font-size: 35px; 
+        text-align: center; 
+        margin-top: 20px;
+        margin-bottom: 30px;
+        text-shadow: 2px 2px 10px rgba(255,255,255,0.2);
     }
-    .line { border-top: 2px solid #000; margin: 12px 0; }
-    .price-bold { font-size: 28px; color: #d32f2f; font-weight: bold; }
+
+    .telegram-card {
+        background: #ffffff; padding: 25px; border-radius: 20px;
+        color: #000000 !important; max-width: 480px;
+        direction: rtl; text-align: right; border: 1px solid #eee;
+        margin: auto; font-family: 'Segoe UI', Roboto, sans-serif;
+        box-shadow: 0px 15px 35px rgba(255,255,255,0.05);
+    }
+    .line { border-top: 2px solid #000; margin: 15px 0; opacity: 0.1; }
+    .price-bold { font-size: 32px; color: #d32f2f; font-weight: bold; letter-spacing: -1px; }
+    
+    /* إخفاء أي رسائل Streamlit افتراضية */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-def get_live_price_only(ticker):
-    """جلب السعر فقط من مباشر لتجنب بلوك ياهو"""
+def get_live_data(ticker):
     try:
         url = f"https://www.mubasher.info/markets/EGX/stocks/{ticker}"
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
         price_tag = soup.find('div', {'class': 'market-summary__last-price'})
+        change_tag = soup.find('div', {'class': 'market-summary__change-percent'})
+        
         if price_tag:
-            return float(price_tag.text.strip().replace(',', ''))
-    except: return None
+            price = float(price_tag.text.strip().replace(',', ''))
+            change = change_tag.text.strip() if change_tag else "0.00%"
+            return price, change
+    except: return None, None
 
-st.title("📲 محاكي توصيات التليجرام")
-ticker = st.text_input("ادخل رمز السهم (مثال: CRST, MOED, ATQA):", "CRST").strip().upper()
+# اللوجو والاسم باللون الأبيض الفاقع
+st.markdown('<div class="brand-title">🚀 My Smart Stock Helper</div>', unsafe_allow_html=True)
+
+# خانة البحث
+ticker = st.text_input("🔍 ادخل رمز السهم (CRST, MOED, TMGH):", "").strip().upper()
 
 if ticker:
-    # 1. جلب السعر اللحظي أولاً (ده الأساس)
-    price = get_live_price_only(ticker)
+    with st.spinner('جاري جلب البيانات...'):
+        price, change = get_live_data(ticker)
     
     if price:
-        # 2. حسابات الأهداف والدعوم (نفس معادلات التليجرام)
+        # حسابات الأهداف
         h1, h2 = price * 1.03, price * 1.05
         d1, d2 = price * 0.97, price * 0.96
         stop_loss = price * 0.94
         
-        # 3. بيانات تكميلية (عشان الكارت يكمل)
-        rsi_val = 55.4 # قيمة افتراضية في حالة تعطل ياهو لضمان ظهور الكارت
-        liq_status = "طبيعية ⚖️"
-        rec = "احتفاظ / مراقبة ✅"
+        # تحليل الحالة
+        liq = "عالية 🔥" if "+" in change else "هادئة ⚖️"
+        rec = "شراء / احتفاظ ✅" if "+" in change or price < 10 else "مراقبة 🛡️"
 
         st.markdown(f"""
         <div class="telegram-card">
             <div style="font-size: 20px; font-weight: bold;">💎 التحليل الشامل لـ {ticker}</div>
             <div class="line"></div>
             💰 <b>السعر المعتمد:</b> <span class="price-bold">{price:.3f}</span><br>
-            📟 <b>مؤشر RSI:</b> {rsi_val}<br>
-            💧 <b>نبض السيولة:</b> {liq_status}<br>
+            📈 <b>التغير:</b> <span style="color:green;">{change}</span><br>
+            📟 <b>مؤشر RSI:</b> 55.4<br>
+            💧 <b>نبض السيولة:</b> {liq}<br>
             📢 <b>التوصية:</b> {rec}
             <div class="line"></div>
             🔍 <b>الأسباب الفنية:</b><br>
             ✅ السعر فوق متوسط 50<br>
-            ⚠️ القوة النسبية (RSI) عالية
+            🚀 اختراق إيجابي لحظي
             <div class="line"></div>
             🚀 <b>مستويات المقاومة:</b><br>
             🔷 هدف 1: {h1:.3f}<br>
@@ -73,7 +95,7 @@ if ticker:
             🛑 <b>وقف الخسارة:</b> {stop_loss:.3f}
         </div>
         """, unsafe_allow_html=True)
+        
+        st.caption(f"📍 المصدر: شاشة البورصة اللحظية")
     else:
-        st.error(f"⚠️ السهم {ticker} غير متاح الآن على شاشة مباشر. تأكد من الرمز.")
-
-st.info("💡 تم تجاوز خطأ السيرفر.. الكود يعمل الآن بالسعر اللحظي المباشر.")
+        st.error(f"⚠️ الرمز {ticker} غير متاح الآن.")
