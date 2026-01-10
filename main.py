@@ -6,12 +6,32 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Smart Stock Analyzer", layout="centered")
 
-# --- CSS لتفتيح المدخلات اليدوية تماماً ---
+# --- CSS الاحترافي (زرار مودرن + تفتيح شامل) ---
 st.markdown("""
 <style>
     header, .main, .stApp { background-color: #0d1117 !important; }
+    
+    /* تفتيح المدخلات اليدوية */
     label p, .stMarkdown p, .stExpander p { color: #ffffff !important; font-weight: bold !important; opacity: 1 !important; }
     input { background-color: #1e2732 !important; color: white !important; border: 1px solid #3498db !important; }
+
+    /* تنسيق زرار الواتساب المودرن (خارج الحاوية) */
+    .stButton>button {
+        background: linear-gradient(90deg, #25D366, #128C7E) !important;
+        color: white !important;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        border-radius: 12px !important;
+        border: none !important;
+        padding: 15px !important;
+        width: 100% !important;
+        transition: 0.3s !important;
+        box-shadow: 0 4px 15px rgba(37,211,102,0.3) !important;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(37,211,102,0.5) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -20,22 +40,13 @@ ARABIC_DB = {"SVCE": "جنوب الوادي للأسمنت", "ARCC": "العرب
 st.title("📊 Smart Stock Analyzer")
 u_input = st.text_input("🔍 كود السهم (مثلاً TMGH):").upper().strip()
 
-def build_final_card(name, sym, p, hi, lo, cl, vol, piv, rs, ss):
-    # --- منطق التوصية والاتجاه ---
+def build_safe_card(name, sym, p, hi, lo, cl, vol, piv, rs, ss):
+    # منطق التوصية والاتجاه
     trend_short = "صاعد 📈" if p > piv else "هابط 📉"
     trend_med = "إيجابي 👍" if p > cl else "سلبي 👎"
     recommendation = "شراء (اختراق)" if p > piv else "مراقبة (دعم)"
     
-    # رسالة الواتساب الشاملة
-    wa_msg = (f"🎯 تقرير: {name} ({sym})\n"
-              f"💰 السعر: {p:.3f}\n"
-              f"🟡 الارتكاز: {piv:.3f}\n"
-              f"🟢 التوصية: {recommendation}\n"
-              f"📊 الاتجاه: {trend_short}\n"
-              f"🚀 م1: {rs[0]:.3f} | 🛡️ د1: {ss[0]:.3f}")
-    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
-
-    # كود الكارت المطور (بمساحة أكبر وتصميم كامل)
+    # 1. تصميم الكارت (بدون الزرار بالداخل لضمان العمل)
     card_html = f"""
     <div style="direction: rtl; font-family: sans-serif; background: #1e2732; border-radius: 15px; border: 1px solid #30363d; padding: 20px; color: white;">
         <h2 style="text-align: center; margin-bottom: 10px;">{name} ({sym})</h2>
@@ -74,16 +85,19 @@ def build_final_card(name, sym, p, hi, lo, cl, vol, piv, rs, ss):
         <div style="background: #0d1117; padding: 10px; border-radius: 10px; margin-top: 15px; border: 1px solid #30363d; font-size: 13px; text-align: center; color: #8b949e;">
             السعر: <b style="color:white">{p:.3f}</b> | أعلى: {hi:.3f} | أدنى: {lo:.3f} | أمس: {cl:.3f}
         </div>
-
-        <a href="{wa_url}" target="_top" style="background: linear-gradient(90deg, #25D366, #128C7E); color: white; text-decoration: none; display: block; text-align: center; padding: 16px; border-radius: 12px; margin-top: 20px; font-weight: bold; font-size: 16px;">
-            📲 مشاركة عبر WhatsApp
-        </a>
     </div>
     """
-    # زيادة الارتفاع لضمان عدم قطع الكارت (height=650)
-    components.html(card_html, height=650, scrolling=False)
+    components.html(card_html, height=480, scrolling=False)
 
-# --- محرك البيانات ---
+    # 2. زر الواتساب (باستخدام st.link_button لضمان عمله 100%)
+    wa_msg = (f"🎯 تقرير: {name} ({sym})\n💰 السعر: {p:.3f}\n🟡 الارتكاز: {piv:.3f}\n"
+              f"🟢 التوصية: {recommendation}\n📊 الاتجاه: {trend_short}\n"
+              f"🚀 م1: {rs[0]:.3f} | 🛡️ د1: {ss[0]:.3f}\n📊 سيولة: {vol:.1f}M")
+    wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
+    
+    st.link_button("📲 مشاركة التقرير الذكي عبر WhatsApp", wa_url)
+
+# --- محرك البحث ---
 found = False
 if u_input:
     try:
@@ -95,25 +109,25 @@ if u_input:
             piv = (hi + lo + p) / 3
             rs = [(2*piv)-lo, piv+(hi-lo), hi+2*(piv-lo)]
             ss = [(2*piv)-hi, piv-(hi-lo), lo-2*(hi-piv)]
-            build_final_card(ARABIC_DB.get(u_input, "سهم متداول"), u_input, p, hi, lo, cl, (l['Volume']*p)/1e6, piv, rs, ss)
+            build_safe_card(ARABIC_DB.get(u_input, "سهم متداول"), u_input, p, hi, lo, cl, (l['Volume']*p)/1e6, piv, rs, ss)
             found = True
     except: pass
 
-# --- اليدوي ---
+# --- المدخلات اليدوية ---
 st.markdown("---")
 st.subheader("🛠️ الإدخال اليدوي")
 c1, c2, c3 = st.columns(3)
-with c1: pm = st.number_input("💵 السعر الآن", format="%.3f", key="p80")
-with c2: hm = st.number_input("🔝 أعلى اليوم", format="%.3f", key="h80")
-with c3: lm = st.number_input("📉 أقل اليوم", format="%.3f", key="l80")
+with c1: pm = st.number_input("💵 السعر الآن", format="%.3f", key="p81")
+with c2: hm = st.number_input("🔝 أعلى اليوم", format="%.3f", key="h81")
+with c3: lm = st.number_input("📉 أقل اليوم", format="%.3f", key="l81")
 
-with st.expander("📊 بيانات إضافية (منورة)"):
+with st.expander("📊 بيانات إضافية للرسالة"):
     cx, cy = st.columns(2)
-    with cx: clm = st.number_input("↩️ إغلاق أمس", format="%.3f", key="c80")
-    with cy: vm = st.number_input("💧 السيولة (M)", format="%.2f", key="v80")
+    with cx: clm = st.number_input("↩️ إغلاق أمس", format="%.3f", key="c81")
+    with cy: vm = st.number_input("💧 السيولة (M)", format="%.2f", key="v81")
 
 if pm > 0 and not found:
     piv = (hm + lm + pm) / 3 if hm > 0 else pm
     rs = [(2*piv)-lm if lm > 0 else pm*1.02, pm*1.04, pm*1.06]
     ss = [(2*piv)-hm if hm > 0 else pm*0.98, pm*0.96, pm*0.94]
-    build_final_card(ARABIC_DB.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL", pm, hm, lm, clm, vm, piv, rs, ss)
+    build_safe_card(ARABIC_DB.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL", pm, hm, lm, clm, vm, piv, rs, ss)
