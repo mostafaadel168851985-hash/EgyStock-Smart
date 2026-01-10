@@ -3,9 +3,9 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-st.set_page_config(page_title="EGX Sniper v27", layout="centered")
+st.set_page_config(page_title="EGX Sniper v29", layout="centered")
 
-# --- CSS التنسيق الاحترافي المستوحى من صورك ---
+# --- التنسيق الاحترافي ---
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #0d1117 !important;}
@@ -27,22 +27,16 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 ARABIC_NAMES = {
-    "ATQA": "مصر الوطنية للصلب - عتاقة",
-    "SWDY": "السويدي إليكتريك",
-    "TMGH": "مجموعة طلعت مصطفى",
-    "CRST": "كريستمارك للمقاولات",
-    "MOED": "المصرية لنظم التعليم الحديث",
-    "FWRY": "فوري لتكنولوجيا المدفوعات",
-    "COMI": "البنك التجاري الدولي"
+    "ATQA": "مصر الوطنية للصلب - عتاقة", "SWDY": "السويدي إليكتريك",
+    "TMGH": "مجموعة طلعت مصطفى", "MOED": "المصرية لنظم التعليم الحديث",
+    "FWRY": "فوري لتكنولوجيا المدفوعات", "COMI": "البنك التجاري الدولي",
+    "CRST": "كريستمارك للمقاولات"
 }
 
-def get_name(symbol):
-    return ARABIC_NAMES.get(symbol.upper(), "شركة مقيدة")
-
 st.markdown("<h1 style='text-align:center; color:white;'>🎯 رادار القناص المصري</h1>", unsafe_allow_html=True)
-u_input = st.text_input("🔍 ادخل الرمز (مثلاً ATQA أو MOED):").upper()
+u_input = st.text_input("🔍 ادخل الرمز للتحليل (آلي أو يدوي):").upper()
 
-# --- 1. كارت التحليل الآلي الشامل (نسخة التليجرام المحدثة) ---
+# --- الجزء الخاص بالتحليل الآلي (v28 المحدثة) ---
 if u_input:
     try:
         symbol = f"{u_input}.CA"
@@ -50,69 +44,81 @@ if u_input:
         if not df.empty:
             p = df['Close'].iloc[-1]
             rsi = ta.rsi(df['Close'], length=14).iloc[-1]
-            vol = (df['Volume'].iloc[-1] * p) / 1_000_000
-            name_ar = get_name(u_input)
+            vol_val = (df['Volume'].iloc[-1] * p) / 1_000_000
+            ma50 = df['Close'].rolling(50).mean().iloc[-1]
+            name_ar = ARABIC_NAMES.get(u_input, "شركة متداولة")
             
-            # الحسابات الفنية
-            r1, r2 = p*1.025, p*1.05
-            s1, s2 = p*0.975, p*0.95
-            inv_target = p * 1.20 # هدف مستثمر
+            # حسابات آلية
+            liq_status = "طبيعية ⚖️" if vol_val > 10 else "ضعيفة ⚠️"
+            recommendation = "احتفاظ / مراقبة ⚖️" if rsi < 70 else "جني أرباح جزئي ⚠️"
             
             st.markdown(f"""
             <div class="report-card">
-                <div style="text-align:center;">
-                    <span style="color:#3498db; font-size:14px;">💎 الرمز: {u_input}</span><br>
-                    <span style="font-size:22px; font-weight:bold;">شركة: {name_ar}</span>
-                </div>
+                <div style="text-align:center;"><span style="color:#3498db;">💎 التحليل الآلي لـ {u_input}</span><br><b>{name_ar}</b></div>
                 <div class="separator"></div>
-                <span class="price-large">{p:.3f}</span>
-                <div class="info-line"><span>📟 مؤشر RSI: <b>{rsi:.1f}</b></span> <span>💧 السيولة: <b>{vol:.1f}M</b></span></div>
+                <div class="info-line"><span>💰 السعر المعتمد:</span> <b>{p:.3f}</b></div>
+                <div class="info-line"><span>📟 مؤشر RSI:</span> <b>{rsi:.1f}</b></div>
+                <div class="info-line"><span>💧 نبض السيولة:</span> <b>{liq_status}</b></div>
+                <div class="info-line"><span>📢 التوصية:</span> <b>{recommendation}</b></div>
                 <div class="separator"></div>
-                <div class="label-blue">🏹 قسم المضارب اللحظي:</div>
-                <div class="info-line"><span>🚀 هدف مضاربي: <b>{r1:.3f}</b></span> <span>🛡️ دعم أول: <b>{s1:.3f}</b></span></div>
-                <div class="info-line"><span>🚀 هدف ثانٍ: <b>{r2:.3f}</b></span> <span>🛡️ دعم ثانٍ: <b>{s2:.3f}</b></span></div>
+                <div class="label-blue">🔍 الأسباب الفنية:</div>
+                <div class="info-line"><span>✅ السعر فوق متوسط 50:</span> <b>{'نعم' if p > ma50 else 'لا'}</b></div>
+                <div class="info-line"><span>✅ القوة النسبية (RSI):</span> <b>{'متوازنة' if rsi < 65 else 'عالية'}</b></div>
                 <div class="separator"></div>
-                <div class="label-blue">🏢 قسم المستثمر:</div>
-                <div class="info-line"><span>🎯 هدف المستهدف (+20%): <b>{inv_target:.3f}</b></span></div>
-                <div style="color:#ff3b30; text-align:center; font-weight:bold; margin-top:10px;">🛑 وقف خسارة: {p*0.94:.3f}</div>
+                <div class="label-blue">🚀 مستويات المقاومة:</div>
+                <div class="info-line"><span>🔹 هدف 1: <b>{p*1.025:.3f}</b></span> <span>🔹 هدف 2: <b>{p*1.05:.3f}</b></span></div>
+                <div class="label-blue">🛡️ مستويات الدعم:</div>
+                <div class="info-line"><span>🔸 دعم 1: <b>{p*0.975:.3f}</b></span> <span>🔸 دعم 2: <b>{p*0.95:.3f}</b></span></div>
+                <div class="separator"></div>
+                <div class="label-blue">🏹 قسم المضارب والمستثمر:</div>
+                <div class="info-line"><span>🚀 هدف مضاربي: <b>{p*1.03:.3f}</b></span> <span>🎯 هدف مستثمر: <b>{p*1.20:.3f}</b></span></div>
+                <div class="separator"></div>
+                <div style="color:#ff3b30; text-align:center; font-weight:bold;">🛑 وقف الخسارة: {p*0.94:.3f}</div>
+            </div>
             """, unsafe_allow_html=True)
-            
-            wa_text = f"🎯 تقرير {name_ar} (%0A💰 السعر: {p:.3f}%0A🚀 أهداف: {r1:.3f} - {r2:.3f}%0A🛡️ دعوم: {s1:.3f} - {s2:.3f}%0A🎯 هدف مستثمر: {inv_target:.3f}%0A🛑 وقف: {p*0.94:.3f}"
-            st.markdown(f'<a href="https://wa.me/?text={wa_text}" target="_blank" class="wa-button">🚀 مشاركة التقرير الشامل</a>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-    except: st.error("تأكد من الرمز الصحيح")
+    except: pass
 
-# --- 2. لوحة الإدخال اليدوي الكاملة ---
 st.markdown("<hr style='border-color:#333;'>", unsafe_allow_html=True)
-st.markdown("<h3 style='color:white; text-align:center;'>🛠️ لوحة القناص اليدوية</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='color:white; text-align:center;'>🛠️ لوحة القناص اليدوية (الشاملة)</h3>", unsafe_allow_html=True)
 
-# ... (خانات الإدخال اليدوي الستة كما هي في الكود السابق لضمان الدقة) ...
+# --- لوحة الإدخال اليدوي المحدثة ---
 c1, c2, c3 = st.columns(3)
-with c1: m_p = st.number_input("💵 السعر الآن:", format="%.3f", key="p_m")
-with c2: m_h = st.number_input("🔝 أعلى اليوم:", format="%.3f", key="h_m")
-with c3: m_l = st.number_input("📉 أقل اليوم:", format="%.3f", key="l_m")
-c4, c5, c6 = st.columns(3)
-with c4: m_cl = st.number_input("↩️ إغلاق أمس:", format="%.3f", key="cl_m")
-with c5: m_mh = st.number_input("🗓️ أعلى شهر:", format="%.3f", key="mh_m")
-with c6: m_v = st.number_input("💧 سيولة (M):", format="%.2f", key="v_m")
+with c1: m_p = st.number_input("💵 السعر الآن:", format="%.3f")
+with c2: m_h = st.number_input("🔝 أعلى سعر:", format="%.3f")
+with c3: m_l = st.number_input("📉 أقل سعر:", format="%.3f")
 
-if m_p > 0 and m_h > 0:
-    name_man = get_name(u_input if u_input else "سهم يدوي")
-    piv = (m_h + m_l + m_p) / 3
-    mr1, ms1 = (2 * piv) - m_l, (2 * piv) - m_h
+c4, c5, c6 = st.columns(3)
+with c4: m_rsi = st.number_input("📟 مؤشر RSI:", format="%.1f")
+with c5: m_v = st.number_input("💧 سيولة (M):", format="%.2f")
+with c6: m_ma = st.selectbox("📈 فوق متوسط 50؟", ["نعم", "لا"])
+
+if m_p > 0:
+    name_man = ARABIC_NAMES.get(u_input if u_input else "", "تحليل يدوي")
+    # حسابات يدوية بناءً على الأرقام المدخلة
+    liq_m = "طبيعية ⚖️" if m_v > 10 else "ضعيفة ⚠️"
+    rec_m = "شراء / احتفاظ 🟢" if m_rsi < 60 else "مراقبة / حذر ⚠️"
     
     st.markdown(f"""
     <div class="report-card" style="border-right: 8px solid #3498db;">
-        <div style="text-align:center;">
-            <span style="color:#3498db;">تحليل يدوي 🛠️</span><br>
-            <span style="font-size:20px; font-weight:bold;">{name_man}</span>
-        </div>
+        <div style="text-align:center;"><span style="color:#3498db;">🛠️ التقرير اليدوي الشامل</span><br><b>{name_man}</b></div>
         <div class="separator"></div>
-        <span class="price-large">{m_p:.3f}</span>
-        <div class="info-line"><span>📍 الارتكاز: <b>{piv:.3f}</b></span> <span>💧 سيولة: <b>{m_v:.1f}M</b></span></div>
-        <div class="info-line"><span>🚀 هدف مضاربي: <b>{mr1:.3f}</b></span> <span>🛡️ دعم: <b>{ms1:.3f}</b></span></div>
-        <div class="info-line"><span>🗓️ قمة شهرية: <b>{m_mh:.3f}</b></span> <span>🎯 هدف مستثمر: <b>{m_p*1.20:.3f}</b></span></div>
-        <div style="color:#ff3b30; text-align:center; font-weight:bold; margin-top:5px;">🛑 وقف الخسارة: {ms1*0.98:.3f}</div>
-        <a href="https://wa.me/?text=تحليل يدوي {name_man}: {m_p:.3f}" class="wa-button">🚀 مشاركة اليدوي</a>
+        <div class="info-line"><span>💰 السعر الحالي:</span> <b>{m_p:.3f}</b></div>
+        <div class="info-line"><span>📟 مؤشر RSI:</span> <b>{m_rsi:.1f}</b></div>
+        <div class="info-line"><span>💧 نبض السيولة:</span> <b>{liq_m}</b></div>
+        <div class="info-line"><span>📢 التوصية:</span> <b>{rec_m}</b></div>
+        <div class="separator"></div>
+        <div class="label-blue">🔍 الأسباب الفنية (يدوي):</div>
+        <div class="info-line"><span>✅ السعر فوق متوسط 50:</span> <b>{m_ma}</b></div>
+        <div class="info-line"><span>✅ حالة القوة النسبية:</span> <b>{'ممتازة' if m_rsi < 50 else 'مرتفعة'}</b></div>
+        <div class="separator"></div>
+        <div class="label-blue">🚀 مستويات المقاومة:</div>
+        <div class="info-line"><span>🔹 هدف 1: <b>{m_p*1.025:.3f}</b></span> <span>🔹 هدف 2: <b>{m_p*1.05:.3f}</b></span></div>
+        <div class="label-blue">🛡️ مستويات الدعم:</div>
+        <div class="info-line"><span>🔸 دعم 1: <b>{m_p*0.975:.3f}</b></span> <span>🔸 دعم 2: <b>{m_p*0.95:.3f}</b></span></div>
+        <div class="separator"></div>
+        <div class="label-blue">🏹 قسم المضارب والمستثمر:</div>
+        <div class="info-line"><span>🚀 هدف مضاربي: <b>{m_p*1.03:.3f}</b></span> <span>🎯 هدف مستثمر: <b>{m_p*1.20:.3f}</b></span></div>
+        <div class="separator"></div>
+        <div style="color:#ff3b30; text-align:center; font-weight:bold;">🛑 وقف الخسارة: {m_p*0.94:.3f}</div>
     </div>
     """, unsafe_allow_html=True)
