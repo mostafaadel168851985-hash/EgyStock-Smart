@@ -6,7 +6,7 @@ import urllib.parse
 
 st.set_page_config(page_title="Smart Stock Analyzer", layout="centered")
 
-# --- CSS التنسيق (ألوان بيضاء واضحة جداً) ---
+# --- CSS التنسيق (تصميم تليجرام الموحد) ---
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #0d1117 !important;}
@@ -33,23 +33,18 @@ ARABIC_DB = {
     "SVCE": "جنوب الوادي للأسمنت", "ARCC": "العربية للأسمنت", "ALUM": "مصر للألومنيوم",
     "ABUK": "أبو قير للأسمدة", "COMI": "البنك التجاري الدولي", "FWRY": "فوري للمدفوعات",
     "BTFH": "بلتون المالية", "TMGH": "مجموعة طلعت مصطفى", "SWDY": "السويدي إليكتريك",
-    "ATQA": "مصر الوطنية للصلب - عتاقة", "UNIT": "المتحدة للإسكان", "AMOC": "الإسكندرية للزيوت"
+    "ATQA": "مصر الوطنية للصلب", "UNIT": "المتحدة للإسكان", "AMOC": "إسكندرية للزيوت"
 }
 
 st.markdown("<h1 style='text-align:center; color:white;'>📊 Smart Stock Analyzer</h1>", unsafe_allow_html=True)
 
-u_input = st.text_input("🔍 ادخل كود السهم (اختياري):").upper().strip()
+u_input = st.text_input("🔍 ادخل كود السهم (مثلاً TMGH):").upper().strip()
 
-def calculate_pivots(high, low, close):
-    pivot = (high + low + close) / 3
-    r1, r2, r3 = (2*pivot)-low, pivot+(high-low), high+2*(pivot-low)
-    s1, s2, s3 = (2*pivot)-high, pivot-(high-low), low-2*(high-pivot)
-    return pivot, [r1, r2, r3], [s1, s2, s3]
-
-def build_card(name, sym, p, high, low, close_prev, vol, score, inds, pivots_data):
-    pivot, rs, ss = pivots_data
-    wa_msg = f"🎯 تقرير {name}\n💰 السعر: {p:.2f}\n⭐ التقييم: {score}/6\n📈 ارتكاز: {pivot:.2f}"
+def build_card(name, sym, p, high, low, close_prev, vol, score, inds, p_data):
+    wa_msg = f"🎯 تقرير {name}\n💰 السعر: {p:.2f}\n⭐ التقييم: {score}/6"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
+    
+    pivot, rs, ss = p_data
 
     st.markdown(f"""
     <div class="report-card">
@@ -64,13 +59,13 @@ def build_card(name, sym, p, high, low, close_prev, vol, score, inds, pivots_dat
             <p style="text-align:center; color:#3498db !important; font-weight:bold; margin-bottom:5px;">🔍 الفحص الفني الذكي:</p>
             <div style="display:flex; justify-content:space-between; font-size:14px;">
                 <span>📈 EMA50: <b class="{'indicator-on' if inds['c1'] else 'indicator-off'}">{'إيجابي' if inds['c1'] else 'سلبي'}</b></span>
-                <span>💧 MACD: <b class="{'indicator-on' if inds['c2'] else 'indicator-off'}">{'إيجابي' if inds['c2'] else 'سلبي'}</b></span>
+                <span>💧 الزخم: <b class="{'indicator-on' if inds['c2'] else 'indicator-off'}">{'إيجابي' if inds['c2'] else 'سلبي'}</b></span>
                 <span>🔥 الاتجاه: <b class="{'indicator-on' if inds['c4'] else 'indicator-off'}">{'صاعد' if inds['c4'] else 'هابط'}</b></span>
             </div>
         </div>
 
-        <div style="background:#21262d; padding:10px; border-radius:8px; margin-bottom:10px;">
-            <p style="margin:0; text-align:center;"><span class="label-gold">🟡 نقطة الارتكاز:</span> <b>{pivot:.3f}</b></p>
+        <div style="background:#21262d; padding:10px; border-radius:8px; margin-bottom:10px; text-align:center;">
+            <p style="margin:0;"><span class="label-gold">🟡 نقطة الارتكاز:</span> <b>{pivot:.3f}</b></p>
         </div>
 
         <div style="display:flex; justify-content:space-between;">
@@ -91,45 +86,49 @@ def build_card(name, sym, p, high, low, close_prev, vol, score, inds, pivots_dat
                 <span>🔙 أمس: {close_prev:.3f}</span>
             </div>
         </div>
-        <a href="{wa_url}" target="_blank" class="wa-button">📲 مشاركة التقرير عبر WhatsApp</a>
+        <a href="{wa_url}" target="_blank" class="wa-button">📲 مشاركة عبر WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
 
-# --- محاولة البحث الآلي (محمية) ---
-auto_success = False
+# --- محرك التحليل ---
+res_data = None
 if u_input:
     try:
         ticker = u_input if u_input.endswith(".CA") else f"{u_input}.CA"
         df = yf.Ticker(ticker).history(period="1y")
-        if not df.empty and len(df) > 10:
+        if not df.empty:
             l = df.iloc[-1]
             p, hi, lo, cl = l["Close"], l["High"], l["Low"], df["Close"].iloc[-2]
-            # حسابات المؤشرات
-            ema = ta.ema(df["Close"], length=min(50, len(df)))
-            macd = ta.macd(df["Close"])
-            inds = {"c1": p > ema.iloc[-1] if ema is not None else True, 
-                    "c2": macd.iloc[-1][0] > macd.iloc[-1][2] if macd is not None else True, 
-                    "c4": p > cl}
-            sc = sum([inds["c1"], inds["c2"], inds["c4"]]) + 1
-            pivots = calculate_pivots(hi, lo, p)
-            build_card(ARABIC_DB.get(u_input, "شركة متداولة"), u_input, p, hi, lo, cl, (l['Volume']*p)/1e6, sc, inds, pivots)
-            auto_success = True
-    except:
-        pass
+            
+            # حسابات البيفوت
+            pivot = (hi + lo + p) / 3
+            rs = [(2*pivot)-lo, pivot+(hi-lo), hi+2*(pivot-lo)]
+            ss = [(2*pivot)-hi, pivot-(hi-lo), lo-2*(hi-pivot)]
+            
+            # حسابات المؤشرات (تأمين ضد الـ Error)
+            ema50 = df["Close"].rolling(window=min(50, len(df))).mean().iloc[-1]
+            inds = {"c1": p > ema50, "c2": p > cl, "c4": p > df["Close"].iloc[-3] if len(df)>3 else True}
+            sc = sum([inds["c1"], inds["c2"], inds["c4"]]) + 2
+            
+            build_card(ARABIC_DB.get(u_input, "شركة متداولة"), u_input, p, hi, lo, cl, (l['Volume']*p)/1e6, sc, inds, (pivot, rs, ss))
+            res_data = True
+    except: pass
 
-# --- لوحة الإدخال اليدوي ---
+# --- اليدوي ---
 st.markdown("<hr>", unsafe_allow_html=True)
-st.markdown("<h4 style='color:white; text-align:center;'>🛠️ التحليل اليدوي المطور</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='color:white; text-align:center;'>🛠️ الإدخال اليدوي</h4>", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
-with c1: pm = st.number_input("💵 السعر الآن:", format="%.3f", key="pm_k")
-with c2: hm = st.number_input("🔝 أعلى سعر:", format="%.3f", key="hm_k")
-with c3: lm = st.number_input("📉 أقل سعر:", format="%.3f", key="lm_k")
+with c1: pm = st.number_input("السعر الآن:", format="%.3f", key="p_manual")
+with c2: hm = st.number_input("أعلى سعر:", format="%.3f", key="h_manual")
+with c3: lm = st.number_input("أقل سعر:", format="%.3f", key="l_manual")
 
-with st.expander("📊 بيانات إضافية (اختياري)"):
+with st.expander("📊 بيانات إضافية"):
     c4, c5 = st.columns(2)
-    with c4: clm = st.number_input("↩️ إغلاق أمس:", format="%.3f", key="clm_k")
-    with c5: vm = st.number_input("💧 السيولة (M):", format="%.2f", key="vm_k")
+    with c4: clm = st.number_input("إغلاق أمس:", format="%.3f", key="cl_manual")
+    with c5: vm = st.number_input("السيولة (M):", format="%.2f", key="v_manual")
 
-if pm > 0 and not auto_success:
-    pivots_m = calculate_pivots(hm if hm>0 else pm, lm if lm>0 else pm, pm)
-    build_card(ARABIC_DB.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL", pm, hm, lm, clm, vm, 3, {"c1":True, "c2":True, "c4":True}, pivots_m)
+if pm > 0 and not res_data:
+    pivot = (hm + lm + pm) / 3 if hm > 0 else pm
+    rs = [(2*pivot)-lm if lm>0 else pm*1.02, pivot+(hm-lm) if hm>0 else pm*1.04, pm*1.06]
+    ss = [(2*pivot)-hm if hm>0 else pm*0.98, pivot-(hm-lm) if hm>0 else pm*0.96, pm*0.94]
+    build_card(ARABIC_DB.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL", pm, hm, lm, clm, vm, 3, {"c1":True, "c2":True, "c4":True}, (pivot, rs, ss))
