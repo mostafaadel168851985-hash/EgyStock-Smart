@@ -3,16 +3,16 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-st.set_page_config(page_title="EGX Ultimate Sniper v37", layout="centered")
+st.set_page_config(page_title="EGX Sniper v39", layout="centered")
 
-# --- CSS التنسيق النهائي الموحد ---
+# --- CSS التنسيق النهائي (طبق الأصل من التليجرام) ---
 st.markdown("""
     <style>
     header, .main, .stApp {background-color: #0d1117 !important;}
     .report-card {
         background-color: #1e2732; color: white; padding: 25px; border-radius: 15px; 
         direction: rtl; text-align: right; border: 1px solid #30363d;
-        margin: 15px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        margin: 15px auto;
     }
     .separator { border-top: 1px solid #333; margin: 15px 0; }
     .label-blue { color: #3498db; font-weight: bold; font-size: 17px; margin-bottom: 5px; }
@@ -25,26 +25,36 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- قاموس الأسماء (تنظيف كامل) ---
-ARABIC_NAMES = {
+# --- قاموس الأسماء (تنظيف احترافي للرموز) ---
+# تم إضافة الرموز زي ما هي في الـ PDF وزي ما بتدخلها يدوي
+RAW_NAMES = {
     "AALR": "العامة لاستصلاح الأراضي", "ABUK": "أبو قير للأسمدة", "ACAMD": "العربية لإدارة الأصول",
     "ACAP": "ايه كابيتال القابضة", "ACGC": "العربية لحليج الأقطان", "ADIB": "مصرف أبو ظبي الإسلامي",
     "AFDI": "الأهلي للتنمية والاستثمار", "ALCN": "الاسكندرية لتداول الحاويات", "AMOC": "الاسكندرية للزيوت المعدنية",
     "ATQA": "مصر الوطنية للصلب - عتاقة", "BTFH": "بلتون المالية القابضة", "COMI": "البنك التجاري الدولي",
-    "FWRY": "فوري للمدفوعات", "SWDY": "السويدي إليكتريك", "TMGH": "مجموعة طلعت مستطفى",
+    "FWRY": "فوري للمدفوعات", "SWDY": "السويدي إليكتريك", "TMGH": "مجموعة طلعت مصطفى",
     "MOED": "المصرية لنظم التعليم الحديث", "MFOT": "موبكو للأسمدة", "UNIT": "المتحدة للاسكان",
     "SCCD": "الصعيد العامة للمقاولات", "UEGC": "الصعيد العامة للمقاولات", "UNIP": "يونيفرسال لمواد التعبئة",
     "UEFM": "مطاحن مصر العليا", "BTEL": "البانر لتكنولوجيا الاتصالات"
 }
+# تنظيف القاموس برمجياً للتأكد من المطابقة
+ARABIC_NAMES = {k.strip(): v for k, v in RAW_NAMES.items()}
 
 st.markdown("<h1 style='text-align:center; color:white;'>🎯 رادار القناص المصري</h1>", unsafe_allow_html=True)
 u_input = st.text_input("🔍 ادخل الرمز (مثلاً ABUK أو SCCD):").upper().strip()
 
-def show_report(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_high=None, is_auto=True):
+def build_card(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_high=None, is_auto=True):
+    # حساب التوصية (سعر + سيولة)
     liq_status = "طبيعية ⚖️" if vol > 10 else "ضعيفة ⚠️"
-    rec = "تجميع 🟢" if rsi < 40 else "احتفاظ ⚖️" if rsi < 70 else "جني أرباح ⚠️"
-    if not is_auto and close_prev:
-        rec = "إيجابي 🟢" if price > close_prev else "سلبي 🔴"
+    
+    if is_auto:
+        rec = "تجميع 🟢" if rsi < 40 else "احتفاظ ⚖️" if rsi < 70 else "جني أرباح ⚠️"
+    else:
+        # توصية يدوية ذكية
+        if price > close_prev:
+            rec = "شراء قوي 🟢" if vol > 10 else "صعود حذر ⚠️"
+        else:
+            rec = "سلبي / بيع 🔴" if vol > 10 else "هدوء تجميعي ⚖️"
 
     st.markdown(f"""
     <div class="report-card">
@@ -67,10 +77,10 @@ def show_report(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_hig
         
         <div class="separator"></div>
         <div class="label-blue">🚀 مستويات المقاومة (الأهداف):</div>
-        <div class="info-line"><span>🔹 هدف أول: <b>{price*1.025:.3f}</b></span> <span>🔹 هدف ثانٍ: <b>{price*1.05:.3f}</b></span></div>
+        <div class="info-line"><span>🔹 مقاومة 1: <b>{price*1.025:.3f}</b></span> <span>🔹 مقاومة 2: <b>{price*1.05:.3f}</b></span></div>
         
         <div class="label-blue">🛡️ مستويات الدعم:</div>
-        <div class="info-line"><span>🔸 دعم أول: <b>{price*0.975:.3f}</b></span> <span>🔸 دعم ثانٍ: <b>{price*0.95:.3f}</b></span></div>
+        <div class="info-line"><span>🔸 دعم 1: <b>{price*0.975:.3f}</b></span> <span>🔸 دعم 2: <b>{price*0.95:.3f}</b></span></div>
         
         <div class="separator"></div>
         <div class="label-blue">🏹 قسم المضارب والمستثمر:</div>
@@ -78,34 +88,38 @@ def show_report(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_hig
         {f'<div class="info-line"><span>🗓️ أعلى شهر: <b>{m_high:.3f}</b></span> <span>🔙 إغلاق أمس: <b>{close_prev:.3f}</b></span></div>' if close_prev else ''}
         
         <div class="separator"></div>
-        <div style="color:#ff3b30; text-align:center; font-weight:bold; font-size:18px;">🛑 وقف الخسارة: {price*0.94:.3f}</div>
+        <div style="color:#ff3b30; text-align:center; font-weight:bold; font-size:19px;">🛑 وقف الخسارة: {price*0.94:.3f}</div>
         <a href="https://wa.me/?text=تقرير {name}: {price:.3f}" class="wa-button">🚀 مشاركة التقرير</a>
     </div>
     """, unsafe_allow_html=True)
 
-# 1. البحث الآلي
+# 1. البحث الآلي اللحظي
 if u_input:
     try:
-        data = yf.Ticker(f"{u_input}.CA").history(period="100d")
+        ticker = f"{u_input}.CA"
+        data = yf.Ticker(ticker).history(period="150d")
         if not data.empty:
             p = data['Close'].iloc[-1]
             v = (data['Volume'].iloc[-1] * p) / 1_000_000
             r = ta.rsi(data['Close']).iloc[-1]
             m = data['Close'].rolling(50).mean().iloc[-1]
-            show_report(ARABIC_NAMES.get(u_input, "شركة متداولة"), u_input, p, v, r, ma50=m)
-    except: st.warning("تأكد من الرمز")
+            # هنا السحر: جلب الاسم العربي حتى لو الرمز فيه مسافات
+            name = ARABIC_NAMES.get(u_input, "شركة متداولة")
+            build_card(name, u_input, p, v, r, ma50=m)
+    except: pass
 
-# 2. اللوحة اليدوية
-st.markdown("<hr style='border-color:#333;'>", unsafe_allow_html=True)
+# 2. الإدخال اليدوي
+st.markdown("<hr style='border-color:#444;'>", unsafe_allow_html=True)
 st.markdown("<h3 style='color:white; text-align:center;'>🛠️ لوحة الإدخال اليدوي</h3>", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
-with c1: p_m = st.number_input("💵 السعر الآن:", format="%.3f")
-with c2: h_m = st.number_input("🔝 أعلى اليوم:", format="%.3f")
-with c3: l_m = st.number_input("📉 أقل اليوم:", format="%.3f")
+with c1: p_m = st.number_input("💵 السعر الآن:", format="%.3f", key="p_m")
+with c2: h_m = st.number_input("🔝 أعلى سعر:", format="%.3f", key="h_m")
+with c3: l_m = st.number_input("📉 أقل سعر:", format="%.3f", key="l_m")
 c4, c5, c6 = st.columns(3)
-with c4: cl_m = st.number_input("↩️ إغلاق أمس:", format="%.3f")
-with c5: mh_m = st.number_input("🗓️ أعلى شهر:", format="%.3f")
-with c6: v_m = st.number_input("💧 السيولة (M):", format="%.2f")
+with c4: cl_m = st.number_input("↩️ إغلاق أمس:", format="%.3f", key="cl_m")
+with c5: mh_m = st.number_input("🗓️ أعلى شهر:", format="%.3f", key="mh_m")
+with c6: v_m = st.number_input("💧 السيولة (M):", format="%.2f", key="v_m")
 
 if p_m > 0:
-    show_report(ARABIC_NAMES.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL", p_m, v_m, 50.0, close_prev=cl_m, m_high=mh_m, is_auto=False)
+    name_m = ARABIC_NAMES.get(u_input if u_input else "MANUAL", "تحليل يدوي")
+    build_card(name_m, u_input if u_input else "MANUAL", p_m, v_m, 50.0, close_prev=cl_m, m_high=mh_m, is_auto=False)
