@@ -1,7 +1,7 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import yfinance as yf
 import urllib.parse
 
 st.set_page_config(page_title="Smart Stock Analyzer", layout="centered")
@@ -26,20 +26,48 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# قاعدة بيانات الأسماء (من الشيت)
-ARABIC_DB = {
-    "SVCE": "جنوب الوادي للأسمنت", "ARCC": "العربية للأسمنت", "ALUM": "مصر للألومنيوم",
-    "ABUK": "أبو قير للأسمدة", "COMI": "البنك التجاري الدولي", "FWRY": "فوري للمدفوعات",
-    "BTFH": "بلتون المالية", "TMGH": "طلعت مصطفى", "SWDY": "السويدي إليكتريك",
-    "ATQA": "عتاقة للصلب", "UNIT": "المتحدة للإسكان", "AMOC": "إسكندرية للزيوت",
-    "ORAS": "أوراسكوم", "EKHO": "القابضة الكويتية", "PHDC": "بالم هيلز", "JUFO": "جهينة"
-}
+# --- قاعدة بيانات الأسماء (PDF / CSV) ---
+# ضع هنا CSV أو PDF جاهز باسماء الشركات + الأكواد
+# مثال CSV: Symbol,Name
+ARABIC_DB = pd.read_csv("egx_companies.csv").set_index("Symbol")["Name"].to_dict()
 
 st.markdown("<h1 style='text-align:center; color:white;'>📊 Smart Stock Analyzer</h1>", unsafe_allow_html=True)
 
 # حقل إدخال الكود
 u_input = st.text_input("🔍 ادخل كود السهم (مثلاً TMGH):").upper().strip()
 
+# --- دوال جلب البيانات ---
+def get_yahoo_data(symbol):
+    """ محاولة جلب البيانات من Yahoo Finance """
+    try:
+        ticker = symbol if symbol.endswith(".CA") else f"{symbol}.CA"
+        df = yf.Ticker(ticker).history(period="1y")
+        if df.empty or len(df) < 20:
+            return None
+        return df
+    except:
+        return None
+
+def get_fallback_data(symbol):
+    """ fallback للبيانات من CSV """
+    try:
+        fallback_df = pd.read_csv("egx_prices.csv")  # CSV فيه الأعمدة: Date,Symbol,Close,High,Low,Volume
+        df = fallback_df[fallback_df["Symbol"]==symbol].copy()
+        if df.empty:
+            return None
+        df.index = pd.to_datetime(df["Date"])
+        return df
+    except:
+        return None
+
+def get_stock_data(symbol):
+    """ دالة موحدة لجلب البيانات """
+    df = get_yahoo_data(symbol)
+    if df is None:
+        df = get_fallback_data(symbol)
+    return df
+
+# --- دالة رسم الكارت ---
 def build_card(name, sym, p, vol, rsi, sup, res, score, cl_p=0, m_h=0, h_d=0, l_d=0, is_auto=False, inds=None):
     wa_msg = f"🎯 تقرير: {name}\n💰 السعر: {p:.3f}\n⭐ التقييم: {score}/6\n🚀 هدف: {res:.2f}\n🛡️ دعم: {sup:.2f}"
     wa_url = f"https://wa.me/?text={urllib.parse.quote(wa_msg)}"
@@ -92,38 +120,32 @@ def build_card(name, sym, p, vol, rsi, sup, res, score, cl_p=0, m_h=0, h_d=0, l_
     </div>
     """, unsafe_allow_html=True)
 
-# --- محاولة جلب البيانات (الآلي) ---
+# --- جلب البيانات وتحليلها ---
 if u_input:
-    try:
-        # إضافة .CA تلقائياً لو مش موجودة
-        ticker = u_input if u_input.endswith(".CA") else f"{u_input}.CA"
-        stock = yf.Ticker(ticker)
-        df = stock.history(period="1y")
+    df = get_stock_data(u_input)
+    if df is not None and len(df) > 20:
+        df["EMA50"] = ta.ema(df["Close"], length=50)
+        df["RSI"] = ta.rsi(df["Close"], length=14)
+        macd_df = ta.macd(df["Close"])
         
-        if not df.empty and len(df) > 20:
-            df["EMA50"] = ta.ema(df["Close"], length=50)
-            df["RSI"] = ta.rsi(df["Close"], length=14)
-            macd_df = ta.macd(df["Close"])
-            
-            l = df.iloc[-1]
-            p, r = l["Close"], l["RSI"]
-            v = (l['Volume'] * p) / 1_000_000
-            s20, r20 = df["Low"].tail(20).min(), df["High"].tail(20).max()
-            
-            inds_data = {
-                "c1": p > l["EMA50"] if "EMA50" in df and not pd.isna(l["EMA50"]) else False,
-                "c2": macd_df.iloc[-1][0] > macd_df.iloc[-1][2] if macd_df is not None else False,
-                "c3": r < 60,
-                "c4": p > df["Close"].iloc[-2]
-            }
-            sc = sum([inds_data["c1"], inds_data["c2"], inds_data["c3"], inds_data["c4"]]) + (2 if r < 35 else 0)
-            
-            build_card(ARABIC_DB.get(u_input, "شركة متداولة"), u_input, p, v, r, s20, r20, sc, 
-                       cl_p=df["Close"].iloc[-2], m_h=df["High"].tail(22).max(), high_d=l["High"], low_d=l["Low"], is_auto=True, inds=inds_data)
-        else:
-            st.warning("⚠️ لم نتمكن من جلب بيانات آليه لهذا الرمز، يرجى استخدامه يدوياً.")
-    except:
-        st.info("💡 جاري الانتظار أو البيانات غير متاحة حالياً.. يمكنك الإدخال يدوياً.")
+        last = df.iloc[-1]
+        p, r = last["Close"], last["RSI"]
+        v = (last['Volume'] * p) / 1_000_000
+        s20, r20 = df["Low"].tail(20).min(), df["High"].tail(20).max()
+        
+        inds_data = {
+            "c1": p > last["EMA50"] if "EMA50" in df and not pd.isna(last["EMA50"]) else False,
+            "c2": macd_df.iloc[-1]["MACD_12_26_9"] > macd_df.iloc[-1]["MACDs_12_26_9"] if macd_df is not None else False,
+            "c3": r < 60,
+            "c4": p > df["Close"].iloc[-2]
+        }
+        sc = sum([inds_data["c1"], inds_data["c2"], inds_data["c3"], inds_data["c4"]]) + (2 if r < 35 else 0)
+        
+        build_card(ARABIC_DB.get(u_input, "شركة متداولة"), u_input, p, v, r, s20, r20, sc,
+                   cl_p=df["Close"].iloc[-2], m_h=df["High"].tail(22).max(),
+                   h_d=last["High"], l_d=last["Low"], is_auto=True, inds=inds_data)
+    else:
+        st.warning("⚠️ البيانات غير متاحة للسهم هذا، يمكنك استخدام الإدخال اليدوي.")
 
 # --- اللوحة اليدوية ---
 st.markdown("<hr style='border-color:#333;'>", unsafe_allow_html=True)
@@ -138,7 +160,7 @@ with col5: mh_m = st.number_input("🗓️ أعلى شهر:", format="%.3f", key
 with col6: v_m = st.number_input("💧 السيولة (M):", format="%.2f", key="v_m")
 
 if p_m > 0:
-    # حساب سكور مبدئي لليدوي
     m_inds = {"c1": p_m > cl_m, "c2": True, "c3": True, "c4": p_m > cl_m}
-    build_card(ARABIC_DB.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL", p_m, v_m, 50.0, p_m*0.97, p_m*1.03, 3 if p_m > cl_m else 2, 
-               cl_p=cl_m, m_h=mh_m, high_d=h_m, low_d=l_m, is_auto=False, inds=m_inds)
+    build_card(ARABIC_DB.get(u_input, "تحليل يدوي"), u_input if u_input else "MANUAL",
+               p_m, v_m, 50.0, p_m*0.97, p_m*1.03, 3 if p_m > cl_m else 2,
+               cl_p=cl_m, m_h=mh_m, h_d=h_m, l_d=l_m, is_auto=False, inds=m_inds)
