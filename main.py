@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 
-st.set_page_config(page_title="EGX Sniper v43", layout="centered")
+st.set_page_config(page_title="EGX Sniper v44", layout="centered")
 
 # --- CSS التنسيق النهائي ---
 st.markdown("""
@@ -20,19 +20,19 @@ st.markdown("""
     .wa-button {
         background: linear-gradient(45deg, #25d366, #128c7e); color: white !important; 
         padding: 12px; border-radius: 50px; text-align: center; font-weight: bold;
-        display: block; text-decoration: none; margin-top: 20px;
+        display: block; text-decoration: none; margin-top: 20px; font-size: 16px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- القاموس الكامل (بما فيهم ARCC و ALUM) ---
+# --- القاموس الكامل والمحدث ---
 ARABIC_NAMES = {
     "ARCC": "العربية للأسمنت", "ALUM": "مصر للألومنيوم", "AALR": "العامة لاستصلاح الأراضي",
     "ABUK": "أبو قير للأسمدة", "ACAMD": "العربية لإدارة الأصول", "ACAP": "ايه كابيتال القابضة",
     "ACGC": "العربية لحليج الأقطان", "ADIB": "مصرف أبو ظبي الإسلامي", "AFDI": "الأهلي للتنمية والاستثمار",
     "ALCN": "الاسكندرية لتداول الحاويات", "AMOC": "الإسكندرية للزيوت المعدنية", "ATQA": "مصر الوطنية للصلب - عتاقة",
     "BTFH": "بلتون المالية القابضة", "COMI": "البنك التجاري الدولي", "FWRY": "فوري للمدفوعات",
-    "SWDY": "السويدي إليكتريك", "TMGH": "مجموعة طلعت مصطفى", "UEGC": "الصعيد العامة للمقاولات",
+    "SWDY": "السويدي إليكتريك", "TMGH": "مجموعة طلعت مستطفى", "UEGC": "الصعيد العامة للمقاولات",
     "SCCD": "الصعيد العامة للمقاولات", "UNIP": "يونيفرسال لمواد التعبئة", "UNIT": "المتحدة للاسكان",
     "MFOT": "موبكو للأسمدة", "HELI": "مصر الجديدة للاسكان"
 }
@@ -43,7 +43,6 @@ u_input = st.text_input("🔍 ادخل الرمز (مثلاً ARCC أو ALUM):")
 def build_card(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_high=None, is_auto=True):
     liq_status = "طبيعية ⚖️" if vol > 10 else "ضعيفة ⚠️"
     
-    # منطق التوصية الذكية (سعر + سيولة)
     if is_auto:
         rec = "تجميع 🟢" if rsi < 40 else "احتفاظ ⚖️" if rsi < 70 else "جني أرباح ⚠️"
     else:
@@ -52,7 +51,10 @@ def build_card(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_high
         else:
             rec = "تخارج / سلبي 🔴" if vol > 15 else "هدوء / مراقبة ⚖️"
 
-    # عرض الكارت
+    # رسالة الواتساب
+    wa_msg = f"تقرير سهم {name}: السعر {price:.3f} - التوصية: {rec}"
+    wa_url = f"https://wa.me/?text={wa_msg}"
+
     st.markdown(f"""
     <div class="report-card">
         <div style="text-align:center;">
@@ -80,7 +82,7 @@ def build_card(name, symbol, price, vol, rsi, ma50=None, close_prev=None, m_high
         {f'<div class="info-line"><span>🗓️ أعلى شهر: <b>{m_high:.3f}</b></span> <span>🔙 إغلاق أمس: <b>{close_prev:.3f}</b></span></div>' if not is_auto else ''}
         <div class="separator"></div>
         <div style="color:#ff3b30; text-align:center; font-weight:bold; font-size:19px;">🛑 وقف الخسارة: {price*0.94:.3f}</div>
-        <a href="https://wa.me/?text=تقرير {name}: {price:.3f}" class="wa-button">🚀 مشاركة التقرير</a>
+        <a href="{wa_url}" target="_blank" class="wa-button">🚀 مشاركة التقرير عبر واتساب</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -97,18 +99,18 @@ if u_input:
             build_card(name, u_input, p, v, r, ma50=m)
     except: pass
 
-# 2. اللوحة اليدوية الكاملة (الـ 6 خانات)
+# 2. اللوحة اليدوية الكاملة
 st.markdown("<hr style='border-color:#444;'>", unsafe_allow_html=True)
 st.markdown("<h3 style='color:white; text-align:center;'>🛠️ لوحة الإدخال اليدوي الكاملة</h3>", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
-with c1: p_m = st.number_input("💵 السعر الآن:", format="%.3f", key="pm43")
-with c2: h_m = st.number_input("🔝 أعلى اليوم:", format="%.3f", key="hm43")
-with c3: l_m = st.number_input("📉 أقل اليوم:", format="%.3f", key="lm43")
+with c1: p_m = st.number_input("💵 السعر الآن:", format="%.3f", key="pm44")
+with c2: h_m = st.number_input("🔝 أعلى اليوم:", format="%.3f", key="hm44")
+with c3: l_m = st.number_input("📉 أقل اليوم:", format="%.3f", key="lm44")
 c4, c5, c6 = st.columns(3)
-with c4: cl_m = st.number_input("↩️ إغلاق أمس:", format="%.3f", key="cm43")
-with c5: mh_m = st.number_input("🗓️ أعلى شهر:", format="%.3f", key="mhm43")
-with c6: v_m = st.number_input("💧 السيولة (M):", format="%.2f", key="vm43")
+with c4: cl_m = st.number_input("↩️ إغلاق أمس:", format="%.3f", key="cm44")
+with c5: mmh_m = st.number_input("🗓️ أعلى شهر:", format="%.3f", key="mmh44")
+with c6: v_m = st.number_input("💧 السيولة (M):", format="%.2f", key="vm44")
 
 if p_m > 0:
     name_m = ARABIC_NAMES.get(u_input, "تحليل يدوي")
-    build_card(name_m, u_input if u_input else "MANUAL", p_m, v_m, 50.0, close_prev=cl_m, m_high=mh_m, is_auto=False)
+    build_card(name_m, u_input if u_input else "MANUAL", p_m, v_m, 50.0, close_prev=cl_m, m_high=mmh_m, is_auto=False)
