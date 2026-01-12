@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import urllib.parse
-from streamlit_autorefresh import st_autorefresh
+import time
 
 # =====================
 # CONFIGURATION
@@ -117,17 +117,13 @@ def scanner_watchlist():
     return alerts
 
 # =====================
-# AUTOREFRESH
-# =====================
-refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
-st_autorefresh(interval=refresh_interval*1000, key="datarefresh")
-
-# =====================
 # UI
 # =====================
 st.title("🏹 EGX Sniper PRO - Dark Mode")
 
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
+
+refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
 # =====================
 # TAB 1: التحليل الآلي
@@ -204,6 +200,10 @@ with tab1:
 """
             wa_url = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg)
             st.markdown(f'<a href="{wa_url}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
+
+            # Auto-refresh
+            time.sleep(refresh_interval)
+            st.experimental_rerun()
 
 # =====================
 # TAB 2: التحليل اليدوي
