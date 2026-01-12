@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import urllib.parse
-import time
+from streamlit_autorefresh import st_autorefresh
 
 # =====================
 # CONFIGURATION
@@ -47,7 +47,6 @@ h1, h2, h3, p, label, span {color: #ffffff;}
 # FUNCTIONS
 # =====================
 
-# تحميل بيانات yfinance
 def load_data(symbol):
     try:
         df = yf.download(symbol, period="6mo", interval="1d")
@@ -56,7 +55,6 @@ def load_data(symbol):
     except:
         return None
 
-# حساب RSI
 def rsi(series, period=14):
     delta = series.diff()
     gain = delta.clip(lower=0)
@@ -66,7 +64,6 @@ def rsi(series, period=14):
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
-# دعم/مقاومة
 def support_resistance(df):
     s1 = df['Low'].tail(15).min()
     s2 = df['Low'].tail(40).min()
@@ -74,31 +71,26 @@ def support_resistance(df):
     r2 = df['High'].tail(40).max()
     return s1, s2, r1, r2
 
-# السيولة
 def liquidity(df):
     df['Value'] = df['Close'] * df['Volume']
     today = int(df['Value'].iloc[-1])
     avg = int(df['Value'].rolling(20).mean().iloc[-1])
     return today, avg
 
-# Score للمضارب
 def score_trader(rsi_val, price, support):
     score = 50
     if rsi_val < 30: score += 20
     if abs(price - support)/support < 0.02: score += 15
     return min(score, 100)
 
-# Score للسوينج
 def score_swing(rsi_val):
     return min(100, 60 + (50 - abs(50 - rsi_val)))
 
-# Score للمستثمر
 def score_invest(df):
     ma50 = df['Close'].rolling(50).mean().iloc[-1]
     price = df['Close'].iloc[-1]
     return 80 if price > ma50 else 55
 
-# AI Comments
 def ai_comment_trader(price, s1):
     return f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
 
@@ -108,7 +100,6 @@ def ai_comment_swing():
 def ai_comment_invest():
     return "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
 
-# Scanner آمن
 def scanner_watchlist():
     alerts = []
     for symbol in WATCHLIST:
@@ -126,6 +117,12 @@ def scanner_watchlist():
     return alerts
 
 # =====================
+# AUTOREFRESH
+# =====================
+refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
+st_autorefresh(interval=refresh_interval*1000, key="datarefresh")
+
+# =====================
 # UI
 # =====================
 st.title("🏹 EGX Sniper PRO - Dark Mode")
@@ -136,10 +133,10 @@ tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التح�
 # TAB 1: التحليل الآلي
 # =====================
 with tab1:
-    symbol = st.text_input("🧾 كود السهم (مثال: TMGH.CA)", "").upper().strip()
-    refresh = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
+    symbol_input = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
 
-    if symbol:
+    if symbol_input:
+        symbol = symbol_input if symbol_input.endswith(".CA") else symbol_input + ".CA"
         df = load_data(symbol)
         if df is None or df.empty:
             st.warning("⚠️ البيانات للسهم غير متاحة، استخدم التحليل اليدوي في التاب الثاني")
@@ -208,10 +205,6 @@ with tab1:
             wa_url = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg)
             st.markdown(f'<a href="{wa_url}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
-            # Auto-refresh
-            time.sleep(refresh)
-            st.experimental_rerun()
-
 # =====================
 # TAB 2: التحليل اليدوي
 # =====================
@@ -225,16 +218,12 @@ with tab2:
     volume = st.number_input("عدد الأسهم المتداولة اليوم", value=0)
 
     if st.button("تحليل يدوي"):
-        if volume > 0:
-            liq_today = volume * open_price
-        else:
-            liq_today = 0
+        liq_today = volume * open_price if volume > 0 else 0
         s1 = low_price
         s2 = (low_price + open_price)/2
         r1 = high_price
         r2 = (high_price + open_price)/2
 
-        # Score افتراضي
         trader_score = score_trader(50, open_price, s1)
         swing_score = score_swing(50)
         invest_score = 60
