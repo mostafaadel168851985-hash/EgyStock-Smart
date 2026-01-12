@@ -68,6 +68,8 @@ def rsi(series, period=14):
     return rsi_series
 
 def support_resistance(df):
+    if df.empty:
+        return 0,0,0,0
     s1 = df['Low'].tail(15).min()
     s2 = df['Low'].tail(40).min()
     r1 = df['High'].tail(15).max()
@@ -75,6 +77,8 @@ def support_resistance(df):
     return s1, s2, r1, r2
 
 def liquidity(df):
+    if df.empty:
+        return 0,0
     df['Value'] = df['Close'] * df['Volume']
     today = int(df['Value'].iloc[-1])
     avg = int(df['Value'].rolling(20).mean().iloc[-1])
@@ -84,7 +88,7 @@ def score_trader(rsi_val, price, support):
     if pd.isna(rsi_val): rsi_val = 50
     score = 50
     if rsi_val < 30: score += 20
-    if abs(price - support)/support < 0.02: score += 15
+    if support > 0 and abs(price - support)/support < 0.02: score += 15
     return min(score, 100)
 
 def score_swing(rsi_val):
@@ -116,7 +120,8 @@ def scanner_watchlist():
             price = df['Close'].iloc[-1]
             rsi_val = rsi(df['Close']).iloc[-1]
             s1, s2, r1, r2 = support_resistance(df)
-            if price <= s1*1.02 and rsi_val < 40:
+            # عرض كل السهم القريب من الدعم حتى لو شرط RSI مش مطابق
+            if s1 > 0 and price <= s1*1.05:
                 alerts.append(f"🚨 {symbol} ({COMPANIES.get(symbol,'')}) | السعر: {price:.2f} | دعم: {s1:.2f} | هدف: {r1:.2f}")
         except:
             continue
@@ -130,7 +135,9 @@ st.title("🏹 EGX Sniper PRO - Dark Mode")
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
 refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
-# TAB 1
+# ----------------------
+# TAB 1: التحليل الآلي
+# ----------------------
 with tab1:
     symbol_input = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
     if symbol_input:
@@ -149,6 +156,7 @@ with tab1:
             swing_score = score_swing(rsi_val)
             invest_score = score_invest(df)
 
+            # ====== CARD التحليل الآلي ======
             st.markdown(f"""
             <div class="card">
             <h3>{symbol} - {company_name}</h3>
@@ -181,6 +189,7 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
+            # WhatsApp
             whatsapp_msg = f"""
 📊 *تحليل سهم {symbol} - {company_name}*
 
@@ -203,7 +212,9 @@ with tab1:
             time.sleep(refresh_interval)
             st.experimental_rerun()
 
-# TAB 2
+# ----------------------
+# TAB 2: التحليل اليدوي
+# ----------------------
 with tab2:
     st.subheader("🛠️ التحليل اليدوي لأي سهم")
     symbol_manual = st.text_input("كود السهم يدويًا", "").upper().strip()
@@ -271,7 +282,9 @@ with tab2:
         wa_url_manual = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg_manual)
         st.markdown(f'<a href="{wa_url_manual}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
-# TAB 3
+# ----------------------
+# TAB 3: Scanner
+# ----------------------
 with tab3:
     st.subheader("🚨 فرص مضاربية قرب الدعم")
     alerts = scanner_watchlist()
