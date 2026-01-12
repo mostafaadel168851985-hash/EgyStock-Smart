@@ -1,84 +1,129 @@
 import streamlit as st
+import yfinance as yf
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 import urllib.parse
 
-# إعداد الصفحة وتنسيق الألوان الناصعة جداً
-st.set_page_config(page_title="EGX Manual Sniper v95", layout="centered")
+# 1. إعدادات الصفحة والألوان (أبيض ناصع وخطوط واضحة)
+st.set_page_config(page_title="EGX Sniper Elite v96", layout="centered")
 
 st.markdown("""
 <style>
     header, .main, .stApp { background-color: #0d1117 !important; }
-    /* جعل الخطوط بيضاء ناصعة جداً */
     .stMarkdown p, label p, h1, h2, h3, span { color: #FFFFFF !important; font-weight: 900 !important; }
     input { background-color: #1e2732 !important; color: #FFFFFF !important; border: 2px solid #3498db !important; }
-    .stNumberInput input { font-size: 22px !important; height: 50px !important; }
+    div[data-testid="stExpander"] { background-color: #1e2732 !important; border: 1px solid #3498db !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🏹 قناص البورصة v95 🔥")
-st.write("التحليل اليدوي 100% دقيق - أدخل أرقام الشاشة فوراً:")
+# 2. القاموس الكامل لأسماء الأسهم العربية
+EGX_DB = {
+    "COMI": "البنك التجاري الدولي", "TMGH": "مجموعة طلعت مصطفى", "FWRY": "فوري",
+    "SWDY": "السويدي إليكتريك", "ESRS": "حديد عز", "ABUK": "أبوقير للأسمدة",
+    "AMOC": "أمو ك", "BTFH": "بلتون المالية", "SKPC": "سيدي كرير",
+    "ATQA": "مصر الوطنية للصلب - عتاقة", "EKHO": "القابضة الكويتية", "ETEL": "المصرية للاتصالات"
+}
 
-# --- لوحة الإدخال اليدوي الأساسية (مفتوحة دائماً) ---
-with st.container():
-    c1, c2, c3 = st.columns(3)
-    p = c1.number_input("السعر الآن", format="%.3f", step=0.001)
-    hi = c2.number_input("أعلى سعر", format="%.3f", step=0.001)
-    lo = c3.number_input("أقل سعر", format="%.3f", step=0.001)
+# 3. محرك جلب البيانات الذكي (Multi-Source)
+def get_stock_data(ticker):
+    # محاولة أولى: Google Finance (الأسرع)
+    try:
+        url = f"https://www.google.com/finance/quote/{ticker}:EGX"
+        soup = BeautifulSoup(requests.get(url, timeout=5).text, 'html.parser')
+        price = float(soup.find("div", {"class": "YMlS1d"}).text.replace('EGP', '').replace(',', '').strip())
+        # جلب الهاي واللو التقريبي من ياهو لتدعيم البيانات
+        t_ca = f"{ticker}.CA"
+        y_data = yf.download(t_ca, period="1d", progress=False)
+        hi = y_data['High'].iloc[-1] if not y_data.empty else price
+        lo = y_data['Low'].iloc[-1] if not y_data.empty else price
+        return price, hi, lo
+    except:
+        # محاولة ثانية: Yahoo Finance مباشرة
+        try:
+            t_ca = f"{ticker}.CA"
+            y_data = yf.download(t_ca, period="1d", progress=False)
+            if not y_data.empty:
+                return y_data['Close'].iloc[-1], y_data['High'].iloc[-1], y_data['Low'].iloc[-1]
+        except: return None, None, None
 
-if p > 0 and hi > 0:
-    # الحسابات الفنية
-    piv = (p + hi + lo) / 3
-    s1 = (2 * piv) - hi
-    r1 = (2 * piv) - lo
+# 4. واجهة البرنامج الأساسية
+st.title("🏹 قناص البورصة - التحليل الآلي v96")
+
+u_input = st.text_input("🔍 ادخل كود السهم (مثلاً TMGH):").upper().strip()
+
+if u_input:
+    p, hi, lo = get_stock_data(u_input)
     
-    st.markdown("---")
-    
-    # --- نظام الإشعارات الفوري (الرادار) ---
-    # 1. إشارة دخول (أخضر فوسفوري)
-    if p <= (s1 * 1.005):
+    if p:
+        # الحسابات الفنية (الارتكاز والدعم والمقاومة)
+        piv = (p + hi + lo) / 3
+        s1 = (2 * piv) - hi
+        r1 = (2 * piv) - lo
+        name = EGX_DB.get(u_input, u_input)
+
+        # --- [الإضافة الجديدة] نظام إشعارات حالة السعر ---
+        if p <= (s1 * 1.005):
+            st.markdown(f"""
+            <div style="background: #2ecc71; padding: 20px; border-radius: 15px; text-align: center; border: 3px solid #ffffff; margin-bottom: 20px;">
+                <h1 style="color: #000000 !important; margin: 0;">🔥 إشارة دخول (عند الدعم) 🔥</h1>
+                <p style="color: #000000 !important; font-size: 18px;">السعر الحالي {p:.3f} مناسب جداً للشراء</p>
+            </div>
+            """, unsafe_allow_html=True)
+        elif p >= (r1 * 0.995):
+            st.markdown(f"""
+            <div style="background: #e74c3c; padding: 20px; border-radius: 15px; text-align: center; border: 3px solid #ffffff; margin-bottom: 20px;">
+                <h1 style="color: #ffffff !important; margin: 0;">🚀 إشارة بيع (عند المقاومة) 🚀</h1>
+                <p style="color: #ffffff !important; font-size: 18px;">السهم وصل لمستهدف البيع اللحظي</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # --- كارت التحليل الفني الشامل ---
         st.markdown(f"""
-        <div style="background: #2ecc71; padding: 25px; border-radius: 15px; text-align: center; border: 4px solid #ffffff; margin-bottom: 20px;">
-            <h1 style="color: #000000 !important; margin: 0; font-size: 40px;">🔥 فرصة دخول الآن 🔥</h1>
-            <p style="color: #000000 !important; font-size: 22px; font-weight: bold;">السعر عند الدعم المثالي: {s1:.3f}</p>
+        <div style="background: #1e2732; padding: 25px; border-radius: 20px; border: 2px solid #3498db; text-align: center;">
+            <h2 style="color: #ffffff; margin-bottom: 10px;">{name}</h2>
+            <div style="background: #0d1117; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #f1c40f;">
+                <p style="color: #f1c40f !important; margin: 0;">نقطة الارتكاز (الميزان)</p>
+                <h1 style="font-size: 50px; margin: 0; color: #ffffff;">{piv:.3f}</h1>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; gap: 15px;">
+                <div style="flex: 1; background: #0d1117; padding: 15px; border-radius: 12px; border-bottom: 6px solid #e74c3c;">
+                    <p style="color: #e74c3c !important; margin: 0;">منطقة الشراء (د1)</p>
+                    <h2 style="margin: 5px 0;">{s1:.3f}</h2>
+                </div>
+                <div style="flex: 1; background: #0d1117; padding: 15px; border-radius: 12px; border-bottom: 6px solid #2ecc71;">
+                    <p style="color: #2ecc71 !important; margin: 0;">منطقة البيع (م1)</p>
+                    <h2 style="margin: 5px 0;">{r1:.3f}</h2>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; color: #8b949e; font-size: 14px; display: flex; justify-content: space-around;">
+                <span>السعر الآن: {p:.3f}</span>
+                <span>أعلى: {hi:.3f}</span>
+                <span>أدنى: {lo:.3f}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-    
-    # 2. إشارة خروج/بيع (أحمر ناري)
-    elif p >= (r1 * 0.995):
-        st.markdown(f"""
-        <div style="background: #e74c3c; padding: 25px; border-radius: 15px; text-align: center; border: 4px solid #ffffff; margin-bottom: 20px;">
-            <h1 style="color: #ffffff !important; margin: 0; font-size: 40px;">🚀 إشارة بيع / جني أرباح 🚀</h1>
-            <p style="color: #ffffff !important; font-size: 22px;">السهم وصل للمقاومة: {r1:.3f}</p>
-        </div>
-        """, unsafe_allow_html=True)
 
-    # --- كارت التحليل الفخم ---
-    st.markdown(f"""
-    <div style="background: #1e2732; padding: 30px; border-radius: 20px; border: 2px solid #3498db; text-align: center;">
-        <div style="background: #0d1117; padding: 20px; border-radius: 15px; margin-bottom: 25px; border: 1px solid #f1c40f;">
-            <p style="color: #f1c40f !important; margin: 0; font-size: 20px;">🟡 نقطة الارتكاز (الميزان)</p>
-            <h1 style="font-size: 60px; margin: 10px 0; color: #ffffff !important;">{piv:.3f}</h1>
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; gap: 15px;">
-            <div style="flex: 1; background: #0d1117; padding: 20px; border-radius: 15px; border-bottom: 6px solid #e74c3c;">
-                <p style="color: #e74c3c !important; margin: 0; font-size: 18px;">📉 منطقة الشراء</p>
-                <h2 style="font-size: 35px; margin: 10px 0;">{s1:.3f}</h2>
-            </div>
-            <div style="flex: 1; background: #0d1117; padding: 20px; border-radius: 15px; border-bottom: 6px solid #2ecc71;">
-                <p style="color: #2ecc71 !important; margin: 0; font-size: 18px;">📈 منطقة البيع</p>
-                <h2 style="font-size: 35px; margin: 10px 0;">{r1:.3f}</h2>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        # زر الواتساب
+        wa_msg = f"تحليل {name}:\nالسعر: {p:.3f}\nالارتكاز: {piv:.3f}\nشراء: {s1:.3f}\nبيع: {r1:.3f}"
+        st.link_button("📲 إرسال التقرير عبر واتساب", f"https://wa.me/?text={urllib.parse.quote(wa_msg)}")
+    else:
+        st.error("❌ عذراً، تعذر جلب البيانات آلياً الآن. برجاء استخدام الإدخال اليدوي بالأسفل.")
 
-    # زر الواتساب
-    st.markdown("<br>", unsafe_allow_html=True)
-    msg = f"🎯 تحليل سهم فني:\n💰 السعر: {p:.3f}\n🟡 الارتكاز: {piv:.3f}\n🟢 شراء: {s1:.3f}\n🔴 بيع: {r1:.3f}"
-    st.link_button("📲 مشاركة التوصية على WhatsApp", f"https://wa.me/?text={urllib.parse.quote(msg)}")
-
-else:
-    st.info("💡 أدخل (السعر وأعلى وأقل) لتفعيل الرادار وظهور الإشعارات فوراً.")
-
+# 5. الإدخال اليدوي (كامل التفاصيل)
 st.markdown("---")
-st.caption("ملاحظة: هذا الكود يعمل يدوياً لضمان السرعة القصوى وتجنب تأخير المواقع.")
+with st.expander("🛠️ الإدخال اليدوي (إذا توقفت البيانات الآلية)"):
+    m_p = st.number_input("السعر الحالي", format="%.3f", key="man_p")
+    m_h = st.number_input("أعلى سعر", format="%.3f", key="man_h")
+    m_l = st.number_input("أقل سعر", format="%.3f", key="man_l")
+    
+    if m_p > 0 and m_h > 0:
+        m_piv = (m_p + m_h + m_l) / 3
+        st.markdown(f"""
+        <div style="background: #1e2732; padding: 15px; border-radius: 10px; border: 1px dashed #f1c40f; text-align: center;">
+            <p style="color: #f1c40f;">نتائج الإدخال اليدوي:</p>
+            <h3>الارتكاز: {m_piv:.3f} | الدعم: {(2*m_piv)-m_h:.3f} | المقاومة: {(2*m_piv)-m_l:.3f}</h3>
+        </div>
+        """, unsafe_allow_html=True)
