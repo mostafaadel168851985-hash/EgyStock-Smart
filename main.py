@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import urllib.parse
-import time
 
 # =====================
 # CONFIGURATION
@@ -26,6 +25,8 @@ st.markdown("""
 <style>
 body, .stApp, .main {background-color: #0d1117; color: #ffffff;}
 h1, h2, h3, p, label, span {color: #ffffff;}
+.stTabs button {background-color:#161b22 !important; color:white !important; font-weight:bold;}
+.stTabs button:focus {outline:none;}
 .card {background-color:#161b22; padding:20px; border-radius:15px; margin-bottom:20px;}
 .score {font-size:26px; font-weight:bold; color:#00ff99;}
 .whatsapp-btn {
@@ -128,10 +129,11 @@ st.title("🏹 EGX Sniper PRO - Dark Mode")
 
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
 
+# =====================
 # TAB 1: التحليل الآلي
+# =====================
 with tab1:
     symbol = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
-    refresh = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
     if symbol:
         df = load_data(symbol)
@@ -197,7 +199,9 @@ with tab1:
             wa_url = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg)
             st.markdown(f'<a href="{wa_url}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
+# =====================
 # TAB 2: التحليل اليدوي
+# =====================
 with tab2:
     st.subheader("🛠️ التحليل اليدوي لأي سهم")
     symbol_manual = st.text_input("كود السهم يدويًا", "").upper().strip()
@@ -234,13 +238,11 @@ with tab2:
         <span class="score">{trader_score}/100</span><br>
         ⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f}
         </div>
-
         <div class="card">
         🔁 <b>سوينج</b><br>
         <span class="score">{swing_score}/100</span><br>
         🔁 حركة تصحيح، راقب الارتداد
         </div>
-
         <div class="card">
         🏦 <b>مستثمر</b><br>
         <span class="score">{invest_score}/100</span><br>
@@ -265,7 +267,9 @@ with tab2:
         wa_url_manual = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg_manual)
         st.markdown(f'<a href="{wa_url_manual}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
+# =====================
 # TAB 3: Scanner
+# =====================
 with tab3:
     st.subheader("🚨 فرص مضاربية قرب الدعم")
     alerts = scanner_watchlist()
