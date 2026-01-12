@@ -56,13 +56,17 @@ def load_data(symbol):
         return None
 
 def rsi(series, period=14):
+    if len(series) < period:
+        return pd.Series([50]*len(series))  # قيمة وسطية لو البيانات قليلة
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
     avg_gain = gain.rolling(period).mean()
     avg_loss = loss.rolling(period).mean()
     rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
+    rsi_series = 100 - (100 / (1 + rs))
+    rsi_series.fillna(50, inplace=True)
+    return rsi_series
 
 def support_resistance(df):
     s1 = df['Low'].tail(15).min()
@@ -78,15 +82,18 @@ def liquidity(df):
     return today, avg
 
 def score_trader(rsi_val, price, support):
+    if pd.isna(rsi_val): rsi_val = 50
     score = 50
     if rsi_val < 30: score += 20
     if abs(price - support)/support < 0.02: score += 15
     return min(score, 100)
 
 def score_swing(rsi_val):
+    if pd.isna(rsi_val): rsi_val = 50
     return min(100, 60 + (50 - abs(50 - rsi_val)))
 
 def score_invest(df):
+    if df.empty: return 55
     ma50 = df['Close'].rolling(50).mean().iloc[-1]
     price = df['Close'].iloc[-1]
     return 80 if price > ma50 else 55
@@ -122,7 +129,6 @@ def scanner_watchlist():
 st.title("🏹 EGX Sniper PRO - Dark Mode")
 
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
-
 refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
 # =====================
@@ -130,7 +136,6 @@ refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 # =====================
 with tab1:
     symbol_input = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
-
     if symbol_input:
         symbol = symbol_input if symbol_input.endswith(".CA") else symbol_input + ".CA"
         df = load_data(symbol)
@@ -201,7 +206,6 @@ with tab1:
             wa_url = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg)
             st.markdown(f'<a href="{wa_url}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
-            # Auto-refresh
             time.sleep(refresh_interval)
             st.experimental_rerun()
 
@@ -258,7 +262,6 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-        # WhatsApp button
         whatsapp_msg_manual = f"""
 📊 *تحليل سهم {symbol_manual} - يدوي*
 
