@@ -10,13 +10,13 @@ import time
 # =====================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
-WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID"]
+WATCHLIST = ["TMGH.CA", "COMI.CA", "ETEL.CA", "SWDY.CA", "EFID.CA"]
 COMPANIES = {
-    "TMGH": "طلعت مصطفى",
-    "COMI": "البنك التجاري الدولي",
-    "ETEL": "المصرية للاتصالات",
-    "SWDY": "السويدي إليكتريك",
-    "EFID": "إيديتا"
+    "TMGH.CA": "طلعت مصطفى",
+    "COMI.CA": "البنك التجاري الدولي",
+    "ETEL.CA": "المصرية للاتصالات",
+    "SWDY.CA": "السويدي إليكتريك",
+    "EFID.CA": "إيديتا"
 }
 
 # =====================
@@ -46,21 +46,16 @@ h1, h2, h3, p, label, span {color: #ffffff;}
 # =====================
 # FUNCTIONS
 # =====================
-
-# تحميل بيانات yfinance، يحاول بدون و مع .CA
 def load_data(symbol):
-    attempts = [symbol, symbol+".CA"]
-    for sym in attempts:
-        try:
-            df = yf.download(sym, period="6mo", interval="1d")
-            df.dropna(inplace=True)
-            if not df.empty:
-                return df
-        except:
-            continue
-    return None
+    if not symbol.endswith(".CA"):
+        symbol = symbol.upper() + ".CA"
+    try:
+        df = yf.download(symbol, period="6mo", interval="1d")
+        df.dropna(inplace=True)
+        return df
+    except:
+        return None
 
-# حساب RSI
 def rsi(series, period=14):
     delta = series.diff()
     gain = delta.clip(lower=0)
@@ -70,7 +65,6 @@ def rsi(series, period=14):
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
-# دعم/مقاومة
 def support_resistance(df):
     s1 = df['Low'].tail(15).min()
     s2 = df['Low'].tail(40).min()
@@ -78,31 +72,30 @@ def support_resistance(df):
     r2 = df['High'].tail(40).max()
     return s1, s2, r1, r2
 
-# السيولة
 def liquidity(df):
     df['Value'] = df['Close'] * df['Volume']
     today = int(df['Value'].iloc[-1])
     avg = int(df['Value'].rolling(20).mean().iloc[-1])
     return today, avg
 
-# Score للمضارب
 def score_trader(rsi_val, price, support):
+    if pd.isna(rsi_val) or pd.isna(price) or pd.isna(support):
+        return 50
     score = 50
     if rsi_val < 30: score += 20
     if abs(price - support)/support < 0.02: score += 15
     return min(score, 100)
 
-# Score للسوينج
 def score_swing(rsi_val):
+    if pd.isna(rsi_val): return 60
     return min(100, 60 + (50 - abs(50 - rsi_val)))
 
-# Score للمستثمر
 def score_invest(df):
+    if df.empty: return 60
     ma50 = df['Close'].rolling(50).mean().iloc[-1]
     price = df['Close'].iloc[-1]
     return 80 if price > ma50 else 55
 
-# AI Comments
 def ai_comment_trader(price, s1):
     return f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
 
@@ -112,7 +105,6 @@ def ai_comment_swing():
 def ai_comment_invest():
     return "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
 
-# Scanner آمن
 def scanner_watchlist():
     alerts = []
     for symbol in WATCHLIST:
@@ -136,23 +128,21 @@ st.title("🏹 EGX Sniper PRO - Dark Mode")
 
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
 
-# =====================
 # TAB 1: التحليل الآلي
-# =====================
 with tab1:
-    symbol_input = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
+    symbol = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
     refresh = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
-    if symbol_input:
-        df = load_data(symbol_input)
+    if symbol:
+        df = load_data(symbol)
         if df is None or df.empty:
-            st.warning("⚠️ البيانات للسهم غير متاحة، استخدم التحليل اليدوي في التاب الثاني")
+            st.warning("⚠️ البيانات للسهم غير متاحة، استخدم التحليل اليدوي")
         else:
             price = df['Close'].iloc[-1]
             rsi_val = rsi(df['Close']).iloc[-1]
             s1, s2, r1, r2 = support_resistance(df)
             liq_today, liq_avg = liquidity(df)
-            company_name = COMPANIES.get(symbol_input, "")
+            company_name = COMPANIES.get(symbol.upper() + ".CA", "")
 
             trader_score = score_trader(rsi_val, price, s1)
             swing_score = score_swing(rsi_val)
@@ -160,7 +150,7 @@ with tab1:
 
             st.markdown(f"""
             <div class="card">
-            <h3>{symbol_input} - {company_name}</h3>
+            <h3>{symbol.upper()} - {company_name}</h3>
             💰 السعر الحالي: {price:.2f}<br>
             📉 RSI: {rsi_val:.1f}<br><br>
             🧱 الدعم: {s1:.2f} / {s2:.2f}<br>
@@ -170,20 +160,17 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-            # Score + AI Comment
             st.markdown(f"""
             <div class="card">
             🎯 <b>مضارب</b><br>
             <span class="score">{trader_score}/100</span><br>
             {ai_comment_trader(price,s1)}
             </div>
-
             <div class="card">
             🔁 <b>سوينج</b><br>
             <span class="score">{swing_score}/100</span><br>
             {ai_comment_swing()}
             </div>
-
             <div class="card">
             🏦 <b>مستثمر</b><br>
             <span class="score">{invest_score}/100</span><br>
@@ -191,9 +178,8 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-            # WhatsApp button
             whatsapp_msg = f"""
-📊 *تحليل سهم {symbol_input} - {company_name}*
+📊 *تحليل سهم {symbol.upper()} - {company_name}*
 
 💰 السعر: {price:.2f}
 📉 RSI: {rsi_val:.1f}
@@ -211,9 +197,7 @@ with tab1:
             wa_url = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg)
             st.markdown(f'<a href="{wa_url}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
-# =====================
 # TAB 2: التحليل اليدوي
-# =====================
 with tab2:
     st.subheader("🛠️ التحليل اليدوي لأي سهم")
     symbol_manual = st.text_input("كود السهم يدويًا", "").upper().strip()
@@ -224,7 +208,7 @@ with tab2:
     volume = st.number_input("عدد الأسهم المتداولة اليوم", value=0)
 
     if st.button("تحليل يدوي"):
-        liq_today = volume * open_price if volume > 0 else 0
+        liq_today = volume * open_price if volume>0 else 0
         s1 = low_price
         s2 = (low_price + open_price)/2
         r1 = high_price
@@ -281,9 +265,7 @@ with tab2:
         wa_url_manual = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg_manual)
         st.markdown(f'<a href="{wa_url_manual}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
-# =====================
 # TAB 3: Scanner
-# =====================
 with tab3:
     st.subheader("🚨 فرص مضاربية قرب الدعم")
     alerts = scanner_watchlist()
