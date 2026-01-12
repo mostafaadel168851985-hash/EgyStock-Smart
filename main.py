@@ -46,7 +46,6 @@ h1, h2, h3, p, label, span {color: #ffffff;}
 # =====================
 # FUNCTIONS
 # =====================
-
 def load_data(symbol):
     try:
         df = yf.download(symbol, period="6mo", interval="1d")
@@ -57,7 +56,7 @@ def load_data(symbol):
 
 def rsi(series, period=14):
     if len(series) < period:
-        return pd.Series([50]*len(series))  # قيمة وسطية لو البيانات قليلة
+        return pd.Series([50]*len(series))
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -152,7 +151,6 @@ with tab1:
             swing_score = score_swing(rsi_val)
             invest_score = score_invest(df)
 
-            # ====== CARD التحليل الآلي ======
             st.markdown(f"""
             <div class="card">
             <h3>{symbol} - {company_name}</h3>
@@ -165,7 +163,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-            # Score + AI Comment
             st.markdown(f"""
             <div class="card">
             🎯 <b>مضارب</b><br>
@@ -186,7 +183,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-            # WhatsApp button
             whatsapp_msg = f"""
 📊 *تحليل سهم {symbol} - {company_name}*
 
