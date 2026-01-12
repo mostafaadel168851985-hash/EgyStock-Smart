@@ -1,12 +1,11 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 import urllib.parse
+import requests
 
-# 1. إعدادات المظهر الفخم (أبيض ناصع وخطوط واضحة)
-st.set_page_config(page_title="EGX Auto Sniper v106", layout="centered")
+# 1. المظهر الاحترافي والتابات
+st.set_page_config(page_title="EGX Sniper Elite v107", layout="centered")
 
 st.markdown("""
 <style>
@@ -16,90 +15,97 @@ st.markdown("""
         background: #ffffff; color: #000000; padding: 25px; 
         border-radius: 20px; border: 4px solid #3498db; font-family: 'Arial'; margin-top: 15px;
     }
-    .report-card h3 { color: #1e2732 !important; text-align: center; border-bottom: 2px solid #3498db; }
+    .report-card h3 { color: #1e2732 !important; text-align: center; border-bottom: 2px solid #3498db; margin-bottom: 15px;}
     .wa-btn {
         display: flex; align-items: center; justify-content: center;
         background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-        color: white !important; padding: 15px; border-radius: 12px;
-        text-decoration: none; font-weight: bold; margin-top: 15px;
+        color: white !important; padding: 18px; border-radius: 15px;
+        text-decoration: none; font-weight: bold; margin-top: 20px;
+        box-shadow: 0 4px 15px rgba(18,140,126,0.3); font-size: 18px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. مخزن الإشعارات
+# 2. نظام تخزين الإشعارات
 if 'alerts' not in st.session_state:
     st.session_state.alerts = []
 
-# 3. محرك جلب البيانات "الخارق" (Anti-Block)
-def fetch_auto_data(ticker):
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    # المحاولة الأولى: Google Finance
+# 3. محرك جلب البيانات المطور (الآلي)
+def get_live_data(ticker):
     try:
-        url = f"https://www.google.com/finance/quote/{ticker}:EGX"
-        soup = BeautifulSoup(requests.get(url, headers=headers).text, 'html.parser')
-        price = float(soup.find("div", {"class": "YMlS1d"}).text.replace('EGP', '').replace(',', '').strip())
-        # جلب الباقي من ياهو
-        y_data = yf.Ticker(f"{ticker}.CA").history(period="1d")
-        if not y_data.empty:
-            return price, y_data['High'].iloc[-1], y_data['Low'].iloc[-1]
-        return price, price, price
+        t_ca = f"{ticker}.CA"
+        # استخدام جلسة مخصصة لتجنب الحظر
+        session = requests.Session()
+        session.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        
+        stock = yf.Ticker(t_ca, session=session)
+        # جلب السعر اللحظي
+        p = stock.fast_info['last_price']
+        
+        # جلب الهاي واللو لليوم
+        df = stock.history(period="1d")
+        if not df.empty:
+            return p, df['High'].iloc[-1], df['Low'].iloc[-1]
+        return p, p, p
     except:
-        # المحاولة الثانية: Yahoo Finance المباشر
-        try:
-            df = yf.Ticker(f"{ticker}.CA").history(period="1d")
-            if not df.empty:
-                return df['Close'].iloc[-1], df['High'].iloc[-1], df['Low'].iloc[-1]
-        except: return None, None, None
+        return None, None, None
 
-# 4. دالة عرض التقرير الموحد
-def generate_report(title, p, hi, lo):
+# 4. دالة عرض التقرير (تليجرام + واتساب)
+def display_full_report(name, p, hi, lo):
     piv = (p + hi + lo) / 3
     s1, s2 = (2 * piv) - hi, piv - (hi - lo)
     r1, r2 = (2 * piv) - lo, piv + (hi - lo)
     stop_loss = s2 * 0.99
     
-    is_buy = p <= (s1 * 1.01)
-    if is_buy:
-        alert_msg = f"🔔 فرصة دخول: {title} عند دعم {s1:.2f}"
-        if alert_msg not in st.session_state.alerts:
-            st.session_state.alerts.append(alert_msg)
+    # الإشعارات الذكية
+    if p <= (s1 * 1.005):
+        msg = f"🔔 فرصة دخول: {name} عند دعم {s1:.2f}"
+        if msg not in st.session_state.alerts: st.session_state.alerts.append(msg)
+        st.success(msg)
 
+    # التقرير الأبيض
     st.markdown(f"""
     <div class="report-card">
-        <h3>💎 تقرير {title} اللحظي</h3>
-        <p>💰 <b>السعر اللحظي:</b> {p:.2f} | <b>الحالة:</b> {'🔥 دخول' if is_buy else '⚖️ مراقبة'}</p>
+        <h3>💎 تقرير {name} التحليلي</h3>
+        <p>💰 <b>السعر الحالي:</b> {p:.2f}</p>
+        <p>📢 <b>التوصية اللحظية:</b> {'🔥 شراء دخول' if p <= (s1 * 1.01) else '⚖️ مراقبة وتحفظ'}</p>
         <hr>
-        <p style="color: #2ecc71;">🚀 <b>المستهدفات:</b> {r1:.2f} - {r2:.2f}</p>
-        <p style="color: #e67e22;">🛡️ <b>الدعوم:</b> {s1:.2f} - {s2:.2f}</p>
-        <p style="color: #e74c3c;">🛑 <b>وقف الخسارة: {stop_loss:.2f}</b></p>
+        <p style="color: #2ecc71; font-size: 18px;">🚀 <b>مستويات الأهداف:</b></p>
+        <p>🎯 هدف 1: {r1:.2f} | 🎯 هدف 2: {r2:.2f}</p>
+        <hr>
+        <p style="color: #e67e22; font-size: 18px;">🛡️ <b>مستويات الدعوم:</b></p>
+        <p>🔸 دعم 1: {s1:.2f} | 🔸 دعم 2: {s2:.2f}</p>
+        <hr>
+        <p style="color: #e74c3c; font-size: 18px;">🛑 <b>وقف الخسارة: {stop_loss:.2f}</b></p>
     </div>
     """, unsafe_allow_html=True)
     
-    wa_msg = f"تحليل {title}:\nالسعر: {p:.2f}\nأهداف: {r1:.2f}-{r2:.2f}\nدعوم: {s1:.2f}-{s2:.2f}\nوقف: {stop_loss:.2f}"
-    st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(wa_msg)}" class="wa-btn">📲 مشاركة عبر واتساب</a>', unsafe_allow_html=True)
+    # زر الواتساب المودرن
+    wa_msg = f"💎 تحليل {name}:\n💰 السعر: {p:.2f}\n🎯 أهداف: {r1:.2f} - {r2:.2f}\n🛡️ دعوم: {s1:.2f} - {s2:.2f}\n🛑 وقف: {stop_loss:.2f}"
+    st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(wa_msg)}" class="wa-btn">📲 مشاركة التقرير (WhatsApp)</a>', unsafe_allow_html=True)
 
-# 5. الواجهة الثلاثية
-st.title("🏹 قناص البورصة الآلي v106")
+# 5. تابات البرنامج (جنب بعض)
+st.title("🏹 رادار قناص البورصة v107")
 tab_auto, tab_manual, tab_alerts = st.tabs(["📡 البحث الآلي", "🛠️ الطوارئ (يدوي)", "🔔 رادار الإشعارات"])
 
 with tab_auto:
-    u_input = st.text_input("🔍 ادخل كود السهم (مثل ATQA):").upper().strip()
-    if u_input:
-        with st.spinner('⏳ جاري جلب الداتا آلياً...'):
-            p, hi, lo = fetch_auto_data(u_input)
-            if p: generate_report(u_input, p, hi, lo)
-            else: st.error("❌ المواقع العالمية محجوبة حالياً، استخدم تاب الطوارئ.")
+    ticker = st.text_input("ادخل كود السهم (مثلاً TMGH):").upper().strip()
+    if ticker:
+        with st.spinner('⏳ جاري سحب الداتا آلياً...'):
+            p, hi, lo = get_live_data(ticker)
+            if p: display_full_report(ticker, p, hi, lo)
+            else: st.error("❌ عطل مؤقت في الداتا الآلية.. استخدم اليدوي فوراً.")
 
 with tab_manual:
-    st.info("استخدم ده لو الآلي عطلان عشان تطلع التقرير فوراً")
+    st.info("حط بيانات الشاشة لو الآلي اتأخر")
     c1, c2, c3 = st.columns(3)
-    p_in = c1.number_input("السعر الآن", format="%.2f", key="pm")
-    h_in = c2.number_input("أعلى سعر", format="%.2f", key="hm")
-    l_in = c3.number_input("أقل سعر", format="%.2f", key="lm")
-    if p_in > 0: generate_report("تحليل يدوي", p_in, h_in, l_in)
+    mp = c1.number_input("السعر الآن", format="%.2f", key="m_p")
+    mh = c2.number_input("أعلى اليوم", format="%.2f", key="m_h")
+    ml = c3.number_input("أقل اليوم", format="%.2f", key="m_l")
+    if mp > 0: display_full_report("تحليل يدوي", mp, mh, ml)
 
 with tab_alerts:
-    st.subheader("🔔 الأسهم اللي عند منطقة دعم")
+    st.subheader("🔔 الأسهم المكتشفة عند الدعم")
     if st.session_state.alerts:
-        for a in st.session_state.alerts: st.success(a)
-    else: st.write("مفيش إشعارات حالياً.")
+        for alert in st.session_state.alerts: st.success(alert)
+    else: st.write("لا توجد إشعارات حالياً.")
