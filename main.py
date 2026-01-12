@@ -130,9 +130,7 @@ st.title("🏹 EGX Sniper PRO - Dark Mode")
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
 refresh_interval = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
-# =====================
-# TAB 1: التحليل الآلي
-# =====================
+# TAB 1
 with tab1:
     symbol_input = st.text_input("🧾 كود السهم (مثال: TMGH)", "").upper().strip()
     if symbol_input:
@@ -205,9 +203,7 @@ with tab1:
             time.sleep(refresh_interval)
             st.experimental_rerun()
 
-# =====================
-# TAB 2: التحليل اليدوي
-# =====================
+# TAB 2
 with tab2:
     st.subheader("🛠️ التحليل اليدوي لأي سهم")
     symbol_manual = st.text_input("كود السهم يدويًا", "").upper().strip()
@@ -275,9 +271,7 @@ with tab2:
         wa_url_manual = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg_manual)
         st.markdown(f'<a href="{wa_url_manual}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
-# =====================
-# TAB 3: Scanner
-# =====================
+# TAB 3
 with tab3:
     st.subheader("🚨 فرص مضاربية قرب الدعم")
     alerts = scanner_watchlist()
