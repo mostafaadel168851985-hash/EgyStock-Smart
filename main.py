@@ -4,7 +4,7 @@ import urllib.parse
 import time
 
 # ================== CONFIG ==================
-st.set_page_config(page_title="EGX Sniper PRO", layout="centered")
+st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
 WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID"]
 
@@ -19,24 +19,18 @@ COMPANIES = {
 # ================== STYLE ==================
 st.markdown("""
 <style>
-header, .main, .stApp { background-color: #0d1117 !important; }
+body, .stApp, .main { background-color: #0d1117; color: #ffffff;}
 h1,h2,h3,p,span,label,li { color: #ffffff !important; font-weight: bold; }
 
 .card {
-    background: #ffffff;
-    color: #000000 !important;
+    background: #161b22;
+    color: #ffffff !important;
     padding: 22px;
     border-radius: 22px;
-    border: 3px solid #3498db;
     margin-top: 15px;
+    border: 2px solid #3498db;
 }
-.card * { color: #000000 !important; }
-
-.badge {
-    padding: 6px 14px;
-    border-radius: 14px;
-    font-weight: bold;
-}
+.badge {padding:6px 14px; border-radius:14px; font-weight:bold;}
 .up { background:#2ecc71; color:white; }
 .down { background:#e74c3c; color:white; }
 .flat { background:#f1c40f; color:black; }
@@ -101,20 +95,38 @@ def liquidity(vol):
     else:
         return "سيولة ضعيفة"
 
+# ================== SCORE & AI ==================
+def score_trader(rsi_val, price, s1):
+    score = 50
+    if rsi_val < 30: score += 20
+    if abs(price - s1)/s1 < 0.02: score += 15
+    return min(score, 100)
+
+def score_swing(rsi_val):
+    return min(100, 60 + (50 - abs(50 - rsi_val)))
+
+def score_invest(price, s2):
+    return 80 if price > s2 else 55
+
+def ai_comment_trader(price, s1):
+    return f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
+
+def ai_comment_swing():
+    return "🔁 السهم في حركة تصحيح داخل اتجاه عام، راقب الارتداد."
+
+def ai_comment_invest():
+    return "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى الدعم الثاني."
+
 # ================== RECOMMENDATION ==================
 def make_recommendation(p, s1, r1, trend, rsi):
     reasons = []
     rec = "انتظار"
-
     if p <= s1 * 1.02 and rsi < 40:
         rec = "شراء"
         reasons += ["قرب من دعم قوي", "RSI منخفض"]
     elif p >= r1 * 0.98 and rsi > 70:
         rec = "بيع"
         reasons += ["قرب من مقاومة", "RSI مرتفع"]
-    else:
-        reasons.append("لا توجد إشارة مكتملة")
-
     reasons.append(f"الاتجاه العام: {trend}")
     return rec, reasons
 
@@ -125,26 +137,35 @@ def show_report(code, p, h, l, vol):
     trend, cls = trend_status(p, h, l)
     rsi = rsi_fake(p, h, l)
     liq = liquidity(vol)
-    rec, reasons = make_recommendation(p, s1, r1, trend, rsi)
 
+    trader_score = score_trader(rsi, p, s1)
+    swing_score = score_swing(rsi)
+    invest_score = score_invest(p, s2)
+
+    # AI Comments
+    ai_trader = ai_comment_trader(p, s1)
+    ai_swing = ai_comment_swing()
+    ai_invest = ai_comment_invest()
+
+    # WhatsApp message
     wa_msg = f"""
-تحليل {code} - {company}
-السعر: {p:.2f}
-الاتجاه: {trend}
-RSI: {rsi:.1f}
-السيولة: {liq}
+📊 تحليل {code} - {company}
+💰 السعر: {p:.2f}
+📈 الاتجاه: {trend}
+⚡ RSI: {rsi:.1f}
+💧 السيولة: {liq}
 
-المضارب:
-شراء قرب {s1:.2f}
-هدف {r1:.2f}
-وقف {s2*0.99:.2f}
+🎯 مضارب: {trader_score}/100
+🔁 سوينج: {swing_score}/100
+🏦 مستثمر: {invest_score}/100
 
-المستثمر:
-الاحتفاظ طالما أعلى {s2:.2f}
-
-التوصية: {rec}
+📝 تعليقات AI:
+- {ai_trader}
+- {ai_swing}
+- {ai_invest}
 """
 
+    # Display card
     st.markdown(f"""
     <div class="card">
         <h3 style="text-align:center;">📊 {code} – {company}</h3>
@@ -153,20 +174,17 @@ RSI: {rsi:.1f}
         <p>⚡ RSI: {rsi:.1f}</p>
         <p>💧 السيولة: {liq}</p>
         <hr>
-        <p><b>🎯 المضارب:</b><br>
-        شراء قرب {s1:.2f} | هدف {r1:.2f} | وقف {s2*0.99:.2f}</p>
-        <p><b>🏦 المستثمر:</b><br>
-        الاحتفاظ طالما أعلى {s2:.2f}</p>
+        <p><b>🎯 المضارب:</b> {trader_score}/100 | {ai_trader}</p>
+        <p><b>🔁 سوينج:</b> {swing_score}/100 | {ai_swing}</p>
+        <p><b>🏦 مستثمر:</b> {invest_score}/100 | {ai_invest}</p>
         <hr>
-        <p><b>📌 التوصية:</b> {rec}</p>
-        <ul>{"".join(f"<li>{r}</li>" for r in reasons)}</ul>
+        <p><b>📌 التوصية:</b> {make_recommendation(p, s1, r1, trend, rsi)[0]}</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(
-        f'<a class="whatsapp-btn" href="https://wa.me/?text={urllib.parse.quote(wa_msg)}">📲 مشاركة التحليل على واتساب</a>',
-        unsafe_allow_html=True
-    )
+    # WhatsApp button
+    wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
+    st.markdown(f'<a class="whatsapp-btn" href="{wa_url}" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
 # ================== SCANNER ==================
 def scanner():
@@ -183,36 +201,36 @@ def scanner():
     return results
 
 # ================== UI ==================
-st.title("🏹 EGX Sniper PRO")
+st.title("🏹 EGX Sniper PRO - Dark Mode")
 
-tab1, tab2, tab3 = st.tabs(["📡 تحليل لحظي", "🛠️ يدوي", "🚨 Scanner"])
+tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
 
 with tab1:
     code = st.text_input("ادخل كود السهم").upper().strip()
-    refresh = st.slider("تحديث (ثواني)", 5, 60, 15)
+    refresh = st.slider("تحديث تلقائي (ثواني)", 5, 60, 15)
 
     if code:
         p, h, l, v = get_data(code)
         if p:
             show_report(code, p, h, l, v)
         else:
-            st.error("فشل جلب البيانات")
+            st.warning("⚠️ البيانات للسهم غير متاحة، استخدم التحليل اليدوي")
 
         time.sleep(refresh)
-        st.rerun()
+        st.experimental_rerun()
 
 with tab2:
     c1, c2, c3, c4 = st.columns(4)
     p = c1.number_input("السعر", format="%.2f")
     h = c2.number_input("أعلى", format="%.2f")
     l = c3.number_input("أقل", format="%.2f")
-    v = c4.number_input("السيولة")
+    v = c4.number_input("عدد الأسهم المتداولة")
 
     if p > 0:
         show_report("MANUAL", p, h, l, v)
 
 with tab3:
-    st.subheader("📡 فرص مضاربية قريبة من الدعم")
+    st.subheader("📡 فرص مضاربية قرب الدعم")
     res = scanner()
     if res:
         for r in res:
