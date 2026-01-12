@@ -1,11 +1,5 @@
-# Streamlit للتطبيق
 streamlit==1.24.1
-
-# Pandas لمعالجة البيانات
 pandas==2.1.1
-
-# Numpy للحسابات الرياضية
 numpy==1.26.0
-
-# yfinance لجلب بيانات الأسهم
 yfinance==0.2.27
+streamlit-autorefresh==0.1.5
