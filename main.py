@@ -1,97 +1,105 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 import urllib.parse
 
-# 1. إعدادات المظهر الاحترافي
-st.set_page_config(page_title="EGX Sniper v104", layout="centered")
+# 1. إعدادات المظهر الفخم (أبيض ناصع وخطوط واضحة)
+st.set_page_config(page_title="EGX Auto Sniper v106", layout="centered")
 
 st.markdown("""
 <style>
     header, .main, .stApp { background-color: #0d1117 !important; }
     .stMarkdown p, label p, h1, h2, h3, span { color: #FFFFFF !important; font-weight: bold; }
-    input { background-color: #1e2732 !important; color: #FFFFFF !important; border: 2px solid #3498db !important; }
-    
-    /* تنسيق كارت التقرير (شبه التليجرام) */
     .report-card {
         background: #ffffff; color: #000000; padding: 25px; 
-        border-radius: 20px; border: 4px solid #3498db; font-family: 'Arial';
+        border-radius: 20px; border: 4px solid #3498db; font-family: 'Arial'; margin-top: 15px;
     }
     .report-card h3 { color: #1e2732 !important; text-align: center; border-bottom: 2px solid #3498db; }
-    
-    /* زرار الواتساب Modern */
     .wa-btn {
         display: flex; align-items: center; justify-content: center;
         background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-        color: white !important; padding: 18px; border-radius: 15px;
-        text-decoration: none; font-weight: bold; margin-top: 20px;
-        box-shadow: 0 4px 15px rgba(18,140,126,0.3);
+        color: white !important; padding: 15px; border-radius: 12px;
+        text-decoration: none; font-weight: bold; margin-top: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. دالة عرض التقرير المتكاملة
-def generate_full_report(title, p, hi, lo):
-    # الحسابات الفنية
+# 2. مخزن الإشعارات
+if 'alerts' not in st.session_state:
+    st.session_state.alerts = []
+
+# 3. محرك جلب البيانات "الخارق" (Anti-Block)
+def fetch_auto_data(ticker):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    # المحاولة الأولى: Google Finance
+    try:
+        url = f"https://www.google.com/finance/quote/{ticker}:EGX"
+        soup = BeautifulSoup(requests.get(url, headers=headers).text, 'html.parser')
+        price = float(soup.find("div", {"class": "YMlS1d"}).text.replace('EGP', '').replace(',', '').strip())
+        # جلب الباقي من ياهو
+        y_data = yf.Ticker(f"{ticker}.CA").history(period="1d")
+        if not y_data.empty:
+            return price, y_data['High'].iloc[-1], y_data['Low'].iloc[-1]
+        return price, price, price
+    except:
+        # المحاولة الثانية: Yahoo Finance المباشر
+        try:
+            df = yf.Ticker(f"{ticker}.CA").history(period="1d")
+            if not df.empty:
+                return df['Close'].iloc[-1], df['High'].iloc[-1], df['Low'].iloc[-1]
+        except: return None, None, None
+
+# 4. دالة عرض التقرير الموحد
+def generate_report(title, p, hi, lo):
     piv = (p + hi + lo) / 3
     s1, s2 = (2 * piv) - hi, piv - (hi - lo)
     r1, r2 = (2 * piv) - lo, piv + (hi - lo)
     stop_loss = s2 * 0.99
-
-    # الإشعارات اللحظية
-    if p <= (s1 * 1.005):
-        st.success(f"🔥 فرصة دخول قوية: السهم عند الدعم {s1:.2f}")
     
-    # عرض التقرير (تصميم التليجرام)
+    is_buy = p <= (s1 * 1.01)
+    if is_buy:
+        alert_msg = f"🔔 فرصة دخول: {title} عند دعم {s1:.2f}"
+        if alert_msg not in st.session_state.alerts:
+            st.session_state.alerts.append(alert_msg)
+
     st.markdown(f"""
     <div class="report-card">
-        <h3>💎 التحليل الشامل لـ {title}</h3>
-        <p>💰 <b>السعر المعتمد:</b> {p:.2f}</p>
-        <p>💧 <b>نبض السيولة:</b> طبيعية ⚖️</p>
-        <p>📢 <b>التوصية:</b> مراقبة عند الدعوم ⚖️</p>
+        <h3>💎 تقرير {title} اللحظي</h3>
+        <p>💰 <b>السعر اللحظي:</b> {p:.2f} | <b>الحالة:</b> {'🔥 دخول' if is_buy else '⚖️ مراقبة'}</p>
         <hr>
-        <p>🔍 <b>الأسباب الفنية:</b></p>
-        <p>✅ السعر يتفاعل مع مناطق الارتكاز</p>
-        <hr>
-        <p style="color: #2ecc71;">🚀 <b>مستويات المقاومة:</b></p>
-        <p>🎯 هدف 1: {r1:.2f} | هدف 2: {r2:.2f}</p>
-        <hr>
-        <p style="color: #e67e22;">🛡️ <b>مستويات الدعم:</b></p>
-        <p>🔸 دعم 1: {s1:.2f} | دعم 2: {s2:.2f}</p>
-        <hr>
-        <p style="color: #e74c3c;">🛑 <b>وقف خسارة: {stop_loss:.2f}</b></p>
+        <p style="color: #2ecc71;">🚀 <b>المستهدفات:</b> {r1:.2f} - {r2:.2f}</p>
+        <p style="color: #e67e22;">🛡️ <b>الدعوم:</b> {s1:.2f} - {s2:.2f}</p>
+        <p style="color: #e74c3c;">🛑 <b>وقف الخسارة: {stop_loss:.2f}</b></p>
     </div>
     """, unsafe_allow_html=True)
     
-    # زر الواتساب المودرن
-    wa_msg = f"💎 تحليل {title}:\n💰 السعر: {p:.2f}\n🎯 أهداف: {r1:.2f} - {r2:.2f}\n🛡️ دعوم: {s1:.2f} - {s2:.2f}\n🛑 وقف: {stop_loss:.2f}"
+    wa_msg = f"تحليل {title}:\nالسعر: {p:.2f}\nأهداف: {r1:.2f}-{r2:.2f}\nدعوم: {s1:.2f}-{s2:.2f}\nوقف: {stop_loss:.2f}"
     st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(wa_msg)}" class="wa-btn">📲 مشاركة عبر واتساب</a>', unsafe_allow_html=True)
 
-# 3. الواجهة الرئيسية
-st.title("🏹 رادار قناص البورصة v104")
+# 5. الواجهة الثلاثية
+st.title("🏹 قناص البورصة الآلي v106")
+tab_auto, tab_manual, tab_alerts = st.tabs(["📡 البحث الآلي", "🛠️ الطوارئ (يدوي)", "🔔 رادار الإشعارات"])
 
-tab1, tab2 = st.tabs(["📡 البحث الآلي", "🛠️ التحليل اليدوي"])
-
-with tab1:
-    u_input = st.text_input("ادخل كود السهم (مثل ATQA):").upper().strip()
+with tab_auto:
+    u_input = st.text_input("🔍 ادخل كود السهم (مثل ATQA):").upper().strip()
     if u_input:
-        try:
-            stock = yf.Ticker(f"{u_input}.CA")
-            df = stock.history(period="1d")
-            if not df.empty:
-                p, hi, lo = df['Close'].iloc[-1], df['High'].iloc[-1], df['Low'].iloc[-1]
-                generate_full_report(u_input, p, hi, lo)
-            else:
-                st.error("⚠️ لم نجد داتا حالياً.. جرب اليدوي.")
-        except:
-            st.error("❌ عطل فني في جلب البيانات.")
+        with st.spinner('⏳ جاري جلب الداتا آلياً...'):
+            p, hi, lo = fetch_auto_data(u_input)
+            if p: generate_report(u_input, p, hi, lo)
+            else: st.error("❌ المواقع العالمية محجوبة حالياً، استخدم تاب الطوارئ.")
 
-with tab2:
-    st.info("حط أرقام الشاشة هنا وهيطلعلك التقرير فوراً")
+with tab_manual:
+    st.info("استخدم ده لو الآلي عطلان عشان تطلع التقرير فوراً")
     c1, c2, c3 = st.columns(3)
-    p_in = c1.number_input("السعر الآن", format="%.2f")
-    h_in = c2.number_input("أعلى سعر", format="%.2f")
-    l_in = c3.number_input("أقل سعر", format="%.2f")
-    
-    if p_in > 0:
-        generate_full_report("تحليل يدوي", p_in, h_in, l_in)
+    p_in = c1.number_input("السعر الآن", format="%.2f", key="pm")
+    h_in = c2.number_input("أعلى سعر", format="%.2f", key="hm")
+    l_in = c3.number_input("أقل سعر", format="%.2f", key="lm")
+    if p_in > 0: generate_report("تحليل يدوي", p_in, h_in, l_in)
+
+with tab_alerts:
+    st.subheader("🔔 الأسهم اللي عند منطقة دعم")
+    if st.session_state.alerts:
+        for a in st.session_state.alerts: st.success(a)
+    else: st.write("مفيش إشعارات حالياً.")
