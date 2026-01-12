@@ -3,37 +3,59 @@ import requests
 import urllib.parse
 import time
 
-# ================= CONFIG =================
+# ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="centered")
 
 WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID"]
 
-# ================= STYLE =================
+COMPANIES = {
+    "TMGH": "طلعت مصطفى",
+    "COMI": "البنك التجاري الدولي",
+    "ETEL": "المصرية للاتصالات",
+    "SWDY": "السويدي إليكتريك",
+    "EFID": "إيديتا"
+}
+
+# ================== STYLE ==================
 st.markdown("""
 <style>
 header, .main, .stApp { background-color: #0d1117 !important; }
-h1,h2,h3,p,span,label { color: #ffffff !important; font-weight: bold; }
+h1,h2,h3,p,span,label,li { color: #ffffff !important; font-weight: bold; }
+
 .card {
     background: #ffffff;
     color: #000000 !important;
-    padding: 20px;
-    border-radius: 18px;
+    padding: 22px;
+    border-radius: 22px;
     border: 3px solid #3498db;
     margin-top: 15px;
 }
 .card * { color: #000000 !important; }
+
 .badge {
-    padding: 6px 12px;
-    border-radius: 12px;
+    padding: 6px 14px;
+    border-radius: 14px;
     font-weight: bold;
 }
 .up { background:#2ecc71; color:white; }
 .down { background:#e74c3c; color:white; }
 .flat { background:#f1c40f; color:black; }
+
+.whatsapp-btn {
+    background: linear-gradient(135deg, #25D366, #128C7E);
+    padding: 15px;
+    border-radius: 16px;
+    text-align: center;
+    color: white !important;
+    font-size: 18px;
+    font-weight: bold;
+    display: block;
+    margin-top: 18px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ================= DATA =================
+# ================== DATA ==================
 @st.cache_data(ttl=10)
 def get_data(symbol):
     try:
@@ -48,8 +70,8 @@ def get_data(symbol):
     except:
         return None, None, None, None
 
-# ================= INDICATORS =================
-def calc_pivot(p, h, l):
+# ================== INDICATORS ==================
+def pivots(p, h, l):
     piv = (p + h + l) / 3
     s1 = (2 * piv) - h
     s2 = piv - (h - l)
@@ -57,7 +79,7 @@ def calc_pivot(p, h, l):
     r2 = piv + (h - l)
     return s1, s2, r1, r2
 
-def calc_trend(p, h, l):
+def trend_status(p, h, l):
     mid = (h + l) / 2
     if p > mid * 1.01:
         return "صاعد", "up"
@@ -66,13 +88,12 @@ def calc_trend(p, h, l):
     else:
         return "عرضي", "flat"
 
-def calc_rsi(p, h, l):
-    rng = h - l
-    if rng == 0:
+def rsi_fake(p, h, l):
+    if h == l:
         return 50
-    return max(0, min(100, ((p - l) / rng) * 100))
+    return ((p - l) / (h - l)) * 100
 
-def liquidity_score(vol):
+def liquidity(vol):
     if vol > 2_000_000:
         return "سيولة عالية"
     elif vol > 500_000:
@@ -80,35 +101,34 @@ def liquidity_score(vol):
     else:
         return "سيولة ضعيفة"
 
-# ================= RECOMMENDATION =================
-def recommendation(p, s1, r1, trend, rsi):
+# ================== RECOMMENDATION ==================
+def make_recommendation(p, s1, r1, trend, rsi):
     reasons = []
     rec = "انتظار"
 
-    if p <= s1 * 1.02 and rsi < 35:
+    if p <= s1 * 1.02 and rsi < 40:
         rec = "شراء"
-        reasons.append("السعر قرب من دعم قوي")
-        reasons.append("RSI منخفض (تشبع بيع)")
+        reasons += ["قرب من دعم قوي", "RSI منخفض"]
     elif p >= r1 * 0.98 and rsi > 70:
         rec = "بيع"
-        reasons.append("السعر قرب مقاومة")
-        reasons.append("RSI مرتفع (تشبع شراء)")
+        reasons += ["قرب من مقاومة", "RSI مرتفع"]
     else:
-        reasons.append("لا توجد إشارة واضحة")
+        reasons.append("لا توجد إشارة مكتملة")
 
     reasons.append(f"الاتجاه العام: {trend}")
     return rec, reasons
 
-# ================= REPORT =================
-def show_report(name, p, h, l, vol):
-    s1, s2, r1, r2 = calc_pivot(p, h, l)
-    trend, trend_cls = calc_trend(p, h, l)
-    rsi = calc_rsi(p, h, l)
-    liq = liquidity_score(vol)
-    rec, reasons = recommendation(p, s1, r1, trend, rsi)
+# ================== REPORT ==================
+def show_report(code, p, h, l, vol):
+    company = COMPANIES.get(code, "")
+    s1, s2, r1, r2 = pivots(p, h, l)
+    trend, cls = trend_status(p, h, l)
+    rsi = rsi_fake(p, h, l)
+    liq = liquidity(vol)
+    rec, reasons = make_recommendation(p, s1, r1, trend, rsi)
 
     wa_msg = f"""
-تحليل {name}
+تحليل {code} - {company}
 السعر: {p:.2f}
 الاتجاه: {trend}
 RSI: {rsi:.1f}
@@ -127,44 +147,42 @@ RSI: {rsi:.1f}
 
     st.markdown(f"""
     <div class="card">
-        <h3 style="text-align:center;">📊 {name}</h3>
+        <h3 style="text-align:center;">📊 {code} – {company}</h3>
         <p>💰 السعر: {p:.2f}</p>
-        <p>📈 الاتجاه: <span class="badge {trend_cls}">{trend}</span></p>
+        <p>📈 الاتجاه: <span class="badge {cls}">{trend}</span></p>
         <p>⚡ RSI: {rsi:.1f}</p>
         <p>💧 السيولة: {liq}</p>
         <hr>
         <p><b>🎯 المضارب:</b><br>
-        شراء قرب {s1:.2f}<br>
-        هدف {r1:.2f}<br>
-        وقف {s2*0.99:.2f}</p>
+        شراء قرب {s1:.2f} | هدف {r1:.2f} | وقف {s2*0.99:.2f}</p>
         <p><b>🏦 المستثمر:</b><br>
         الاحتفاظ طالما أعلى {s2:.2f}</p>
         <hr>
         <p><b>📌 التوصية:</b> {rec}</p>
-        <ul>
-            {''.join(f"<li>{r}</li>" for r in reasons)}
-        </ul>
+        <ul>{"".join(f"<li>{r}</li>" for r in reasons)}</ul>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown(
-        f'<a href="https://wa.me/?text={urllib.parse.quote(wa_msg)}">📲 مشاركة التحليل على واتساب</a>',
+        f'<a class="whatsapp-btn" href="https://wa.me/?text={urllib.parse.quote(wa_msg)}">📲 مشاركة التحليل على واتساب</a>',
         unsafe_allow_html=True
     )
 
-# ================= SCANNER =================
+# ================== SCANNER ==================
 def scanner():
-    hits = []
+    results = []
     for s in WATCHLIST:
         p, h, l, v = get_data(s)
         if p:
-            s1, _, _, _ = calc_pivot(p, h, l)
-            rsi = calc_rsi(p, h, l)
+            s1, _, r1, _ = pivots(p, h, l)
+            rsi = rsi_fake(p, h, l)
             if p <= s1 * 1.02 and rsi < 40:
-                hits.append(f"🚨 {s} فرصة مضاربة | سعر {p:.2f}")
-    return hits
+                results.append(
+                    f"🚨 {s} ({COMPANIES.get(s,'')}) | سعر {p:.2f} | دعم {s1:.2f} | هدف {r1:.2f}"
+                )
+    return results
 
-# ================= UI =================
+# ================== UI ==================
 st.title("🏹 EGX Sniper PRO")
 
 tab1, tab2, tab3 = st.tabs(["📡 تحليل لحظي", "🛠️ يدوي", "🚨 Scanner"])
@@ -191,7 +209,7 @@ with tab2:
     v = c4.number_input("السيولة")
 
     if p > 0:
-        show_report("تحليل يدوي", p, h, l, v)
+        show_report("MANUAL", p, h, l, v)
 
 with tab3:
     st.subheader("📡 فرص مضاربية قريبة من الدعم")
@@ -200,4 +218,4 @@ with tab3:
         for r in res:
             st.error(r)
     else:
-        st.success("لا فرص حالياً")
+        st.success("لا توجد فرص حالياً")
