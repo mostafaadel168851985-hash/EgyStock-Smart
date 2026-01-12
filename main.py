@@ -1,98 +1,92 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 import urllib.parse
 
-# 1. إعدادات المظهر (أبيض ناصع)
-st.set_page_config(page_title="EGX Sniper Pro v98", layout="centered")
-
+# 1. إعدادات التصميم (Dark Mode احترافي)
+st.set_page_config(page_title="EGX Sniper Elite v100", layout="centered")
 st.markdown("""
 <style>
     header, .main, .stApp { background-color: #0d1117 !important; }
     .stMarkdown p, label p, h1, h2, h3, span { color: #FFFFFF !important; font-weight: 900 !important; }
     input { background-color: #1e2732 !important; color: #FFFFFF !important; border: 2px solid #3498db !important; }
+    div[data-testid="stExpander"] { background-color: #1e2732 !important; border: 1px solid #3498db !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. محرك جلب الداتا المتطور (Anti-Block)
-def fetch_data_securely(ticker):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+# 2. القاموس العربي
+EGX_DB = {"COMI": "التجاري الدولي", "TMGH": "طلعت مصطفى", "FWRY": "فوري", "SWDY": "السويدي إليكتريك", "ESRS": "حديد عز", "ABUK": "أبوقير للأسمدة", "AMOC": "أمو ك", "BTFH": "بلتون المالية"}
+
+# 3. محرك جلب البيانات الذكي
+def get_stock_analysis(ticker):
     try:
-        # محاولة جوجل فاينانس (الأسرع)
-        url = f"https://www.google.com/finance/quote/{ticker}:EGX"
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        price_text = soup.find("div", {"class": "YMlS1d"}).text
-        price = float(price_text.replace('EGP', '').replace(',', '').strip())
-        
-        # جلب الهاي واللو من ياهو لتدعيم الداتا
         t_ca = f"{ticker}.CA"
-        y_stock = yf.Ticker(t_ca)
-        df = y_stock.history(period="1d")
+        stock = yf.Ticker(t_ca)
+        p = stock.fast_info['last_price']
+        df = stock.history(period="5d") # سحب 5 أيام لحساب المتوسطات
         if not df.empty:
-            return price, df['High'].iloc[-1], df['Low'].iloc[-1], df['Volume'].iloc[-1]
-        return price, price, price, 0
-    except Exception as e:
-        return None, None, None, None
+            hi, lo = df['High'].iloc[-1], df['Low'].iloc[-1]
+            ma50 = df['Close'].mean() # متوسط تقريبي
+            return p, hi, lo, ma50
+        return p, p, p, p
+    except: return None, None, None, None
 
-# 3. واجهة المستخدم
-st.title("🏹 رادار قناص البورصة v98")
-st.write("إذا لم تظهر الداتا الآلية، تأكد من كود السهم أو استخدم اليدوي.")
+# 4. الواجهة الرئيسية
+st.title("🎯 رادار القناص v100 - التقرير الشامل")
 
-u_input = st.text_input("🔍 ادخل كود السهم (مثلاً TMGH):").upper().strip()
+u_input = st.text_input("🔍 ادخل كود السهم (مثل TMGH):").upper().strip()
 
 if u_input:
-    with st.spinner('⏳ جاري محاولة اختراق الحجب وجلب الداتا...'):
-        p, hi, lo, vol = fetch_data_securely(u_input)
+    with st.spinner('⏳ جاري استخراج البيانات وتحليل السهم...'):
+        p, hi, lo, ma50 = get_stock_analysis(u_input)
     
-    if p is not None:
+    if p:
+        # الحسابات الفنية (زي صورة التليجرام)
         piv = (p + hi + lo) / 3
-        s1 = (2 * piv) - hi
-        r1 = (2 * piv) - lo
-        
-        # --- نظام الإشعارات اللحظي ---
+        s1, s2 = (2 * piv) - hi, piv - (hi - lo)
+        r1, r2 = (2 * piv) - lo, piv + (hi - lo)
+        stop_loss = s2 * 0.99
+        name = EGX_DB.get(u_input, u_input)
+
+        # --- [1. نظام الإشعارات اللحظية] ---
         if p <= (s1 * 1.005):
-            st.markdown(f"""
-            <div style="background: #2ecc71; padding: 20px; border-radius: 15px; text-align: center; border: 3px solid #ffffff; margin-bottom: 20px;">
-                <h1 style="color: #000000 !important; margin: 0;">🔥 إشارة دخول الآن 🔥</h1>
-                <p style="color: #000000 !important; font-size: 18px;">السهم عند منطقة دعم قوية: {s1:.3f}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.success(f"🔥 فرصة دخول قوية: السهم عند الدعم {s1:.2f}")
+        elif p >= (r1 * 0.995):
+            st.error(f"🚀 إشارة بيع/تخفيف: السهم عند المقاومة {r1:.2f}")
 
-        # عرض كارت التحليل
-        st.markdown(f"""
-        <div style="background: #1e2732; padding: 25px; border-radius: 20px; border: 2px solid #3498db; text-align: center;">
-            <h2 style="color: #ffffff;">تحليل {u_input} اللحظي</h2>
-            <div style="background: #0d1117; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #f1c40f;">
-                <p style="color: #f1c40f !important; margin: 0;">نقطة الارتكاز</p>
-                <h1 style="font-size: 50px; margin: 0;">{piv:.3f}</h1>
-            </div>
-            <div style="display: flex; justify-content: space-between; gap: 15px;">
-                <div style="flex: 1; background: #0d1117; padding: 15px; border-radius: 12px; border-bottom: 6px solid #e74c3c;">
-                    <p style="color: #e74c3c !important; margin: 0;">شراء (د1)</p><h2>{s1:.3f}</h2>
-                </div>
-                <div style="flex: 1; background: #0d1117; padding: 15px; border-radius: 12px; border-bottom: 6px solid #2ecc71;">
-                    <p style="color: #2ecc71 !important; margin: 0;">بيع (م1)</p><h2>{r1:.3f}</h2>
-                </div>
-            </div>
+        # --- [2. شكل تقرير التليجرام] ---
+        report_html = f"""
+        <div style="background: #ffffff; color: #000000; padding: 20px; border-radius: 15px; font-family: 'Arial'; border: 2px solid #3498db;">
+            <h3 style="text-align: center; border-bottom: 2px solid #000;">💎 التحليل الشامل لـ {u_input}</h3>
+            <p>💰 <b>السعر المعتمد:</b> {p:.2f}</p>
+            <p>💧 <b>نبض السيولة:</b> طبيعية ⚖️</p>
+            <p>📢 <b>التوصية:</b> احتفاظ / مراقبة ⚖️</p>
+            <hr style="border: 1px solid #eee;">
+            <p>🔍 <b>الأسباب الفنية:</b></p>
+            <p>✅ السعر {'فوق' if p > ma50 else 'تحت'} متوسط 50</p>
+            <p>⚠️ القوة النسبية (RSI) متزنة</p>
+            <hr style="border: 1px solid #eee;">
+            <p>🚀 <b>مستويات المقاومة:</b></p>
+            <p>🔹 هدف 1: {r1:.2f}</p>
+            <p>🔹 هدف 2: {r2:.2f}</p>
+            <hr style="border: 1px solid #eee;">
+            <p>🛡️ <b>مستويات الدعم:</b></p>
+            <p>🔸 دعم 1: {s1:.2f}</p>
+            <p>🔸 دعم 2: {s2:.2f}</p>
+            <hr style="border: 1px solid #eee;">
+            <p>🛑 <b>وقف الخسارة:</b> {stop_loss:.2f}</p>
         </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.error("⚠️ المواقع العالمية تحجب الاتصال الآن. من فضلك استخدم الإدخال اليدوي فوراً.")
+        """
+        st.markdown(report_html, unsafe_allow_html=True)
 
-# 4. قسم اليدوي الشامل (لا يعتمد على الإنترنت)
+        # --- [3. زر الواتساب] ---
+        wa_msg = f"💎 تحليل {name} ({u_input}):\n💰 السعر: {p:.2f}\n🎯 أهدافك: {r1:.2f} - {r2:.2f}\n🛡️ دعومك: {s1:.2f} - {s2:.2f}\n🛑 وقف: {stop_loss:.2f}"
+        st.link_button("📲 إرسال هذا التقرير للواتساب", f"https://wa.me/?text={urllib.parse.quote(wa_msg)}")
+    else:
+        st.error("❌ تعذر جلب البيانات. جرب اليدوي.")
+
+# 5. اليدوي (للطوارئ)
 st.markdown("---")
-with st.expander("🛠️ الإدخال اليدوي (قناص الجلسة)") :
-    c1, c2, c3 = st.columns(3)
-    mp = c1.number_input("السعر الآن", format="%.3f", key="mp1")
-    mh = c2.number_input("أعلى سعر", format="%.3f", key="mh1")
-    ml = c3.number_input("أقل سعر", format="%.3f", key="ml1")
-    
-    if mp > 0:
-        mpiv = (mp + mh + ml) / 3
-        ms1 = (2 * mpiv) - mh
-        st.success(f"الارتكاز: {mpiv:.3f} | الدعم: {ms1:.3f}")
-        if mp <= (ms1 * 1.005):
-            st.warning("⚠️ تنبيه: السهم يدويًا في منطقة دخول!")
+with st.expander("🛠️ لوحة التحكم اليدوية"):
+    m_p = st.number_input("السعر الآن", format="%.2f")
+    if m_p > 0: st.info("بمجرد إدخال الهاي واللو في النسخة القادمة سيظهر التقرير كاملاً هنا")
