@@ -3,88 +3,105 @@ import yfinance as yf
 import pandas as pd
 import urllib.parse
 
-st.set_page_config(page_title="EGX Sniper Radar", layout="wide")
+st.set_page_config(page_title="EGX Opportunities Radar", layout="wide")
 
-# --- تنسيق الألوان والفونتات (أبيض ناصع) ---
+# --- إصلاح الألوان والفونطات (أبيض ناصع) ---
 st.markdown("""
 <style>
     header, .main, .stApp { background-color: #0d1117 !important; }
-    .stMarkdown p, label p, h1, h2, h3 { color: #ffffff !important; font-weight: bold !important; }
-    .stAlert { border-radius: 10px !important; }
+    .stMarkdown p, label p, h1, h2, h3, .stText { color: #ffffff !important; font-weight: bold !important; }
+    input { background-color: #1e2732 !important; color: #ffffff !important; border: 2px solid #3498db !important; }
     div[data-testid="stExpander"] { background-color: #1e2732 !important; border: 1px solid #3498db !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎯 رادار صيد الفرص (EGX Sniper)")
+st.title("🎯 رادار صيد الفرص الذكي")
 
-# --- قائمة الأسهم اللي البرنامج هيراقبها تلقائياً ---
-# تقدر تزود أي سهم في القائمة دي
-WATCHLIST = ["COMI.CA", "TMGH.CA", "FWRY.CA", "SWDY.CA", "ESRS.CA", "ABUK.CA", "BTFH.CA", "AMOC.CA", "SKPC.CA"]
+# --- قائمة المراقبة (تقدر تزود فيها براحتك) ---
+WATCHLIST = ["COMI.CA", "TMGH.CA", "FWRY.CA", "SWDY.CA", "ESRS.CA", "ABUK.CA", "BTFH.CA", "AMOC.CA", "ATQA.CA"]
 
-# --- محرك البحث والرادار ---
-def start_radar():
-    st.subheader("🕵️ جاري فحص السوق الآن...")
-    found_opportunities = []
-    
-    # جلب البيانات لكل القائمة مرة واحدة لتوفير الوقت
+# --- محرك البحث عن فرص الدعم ---
+def get_market_opportunities():
+    opps = []
     try:
-        data = yf.download(WATCHLIST, period="2d", interval="1d", progress=False)
-        
+        # جلب البيانات لأهم الأسهم مرة واحدة
+        df = yf.download(WATCHLIST, period="2d", interval="1d", progress=False)
         for ticker in WATCHLIST:
             try:
-                # حساب السعر والدعم لكل سهم
-                current_price = data['Close'][ticker].iloc[-1]
-                high = data['High'][ticker].iloc[-1]
-                low = data['Low'][ticker].iloc[-1]
-                prev_close = data['Close'][ticker].iloc[-2]
+                p = df['Close'][ticker].iloc[-1]
+                hi = df['High'][ticker].iloc[-1]
+                lo = df['Low'][ticker].iloc[-1]
+                piv = (hi + lo + p) / 3
+                s1 = (2 * piv) - hi
                 
-                pivot = (high + low + current_price) / 3
-                support1 = (2 * pivot) - high
-                
-                # شرط "فرصة الدخول": السعر قريب من الدعم بنسبة 1% أو أقل منه
-                if current_price <= (support1 * 1.01):
-                    found_opportunities.append({
-                        "ticker": ticker.replace(".CA", ""),
-                        "price": current_price,
-                        "support": support1,
-                        "pivot": pivot
-                    })
-            except:
-                continue
-                
-        return found_opportunities
-    except:
-        st.error("تعذر جلب بيانات الرادار، تأكد من الاتصال بالإنترنت.")
-        return []
+                # شرط الإشارة: السعر قريب من الدعم أو لمسه
+                if p <= (s1 * 1.01):
+                    opps.append({"sym": ticker.replace(".CA", ""), "price": p, "s1": s1})
+            except: continue
+        return opps
+    except: return []
 
-# --- عرض النتائج ---
-opportunities = start_radar()
+# --- عرض قسم التنبيهات (الأسهم اللي في منطقة دعم) ---
+st.subheader("⚠️ الأسهم في منطقة دخول الآن (عند الدعم)")
+live_opps = get_market_opportunities()
 
-if opportunities:
-    st.success(f"✅ تم العثور على {len(opportunities)} سهم في منطقة دخول جيدة!")
-    
-    # عرض الفرص في كروت مريحة للعين
-    cols = st.columns(len(opportunities) if len(opportunities) < 4 else 3)
-    for i, opp in enumerate(opportunities):
+if live_opps:
+    cols = st.columns(len(live_opps) if len(live_opps) < 4 else 3)
+    for i, item in enumerate(live_opps):
         with cols[i % 3]:
             st.markdown(f"""
-            <div style="background: #1e2732; padding: 20px; border-radius: 15px; border-top: 5px solid #2ecc71; margin-bottom: 20px;">
-                <h3 style="margin:0; color:#2ecc71;">{opp['ticker']}</h3>
-                <p style="margin:5px 0;">السعر: <b style="font-size:20px;">{opp['price']:.3f}</b></p>
-                <p style="margin:5px 0; color:#e74c3c;">الدعم (د1): {opp['support']:.3f}</p>
-                <hr style="border-color:#3d444d;">
-                <p style="font-size:12px; color:#8b949e;">السعر الآن مثالي للدخول (قرب الدعم)</p>
+            <div style="background: #1e2732; padding: 15px; border-radius: 10px; border-right: 5px solid #2ecc71; margin-bottom: 10px;">
+                <h3 style="color:#2ecc71; margin:0;">{item['sym']}</h3>
+                <p style="margin:5px 0;">السعر: {item['price']:.3f}</p>
+                <p style="margin:0; font-size:12px; color:#f1c40f;">الدعم الحالي: {item['s1']:.3f}</p>
             </div>
             """, unsafe_allow_html=True)
 else:
-    st.info("🔎 السوق حالياً يتداول أعلى من مناطق الدعم. لا توجد فرص دخول "آمنة" في القائمة الآن.")
+    st.info("🔎 لا توجد أسهم من القائمة عند مناطق دعم حالياً.")
 
-# --- قسم البحث اليدوي المعتاد (عشان لو عايز تحلل سهم مش في الرادار) ---
+# --- قسم التحليل الفردي (الكارت المعتاد) ---
 st.markdown("---")
-st.subheader("🔍 تحليل سهم محدد")
-u_input = st.text_input("ادخل كود السهم (مثلاً ATQA):").upper().strip()
+st.subheader("🔍 تحليل سهم محدد بالتفصيل")
+u_input = st.text_input("ادخل كود السهم (مثلاً TMGH):").upper().strip()
 
 if u_input:
-    # (هنا بنحط نفس كود التحليل بتاعنا اللي فات للسهم المنفرد)
-    st.write(f"جاري تحليل {u_input}...")
-    # ... (باقي كود الكارت الاحترافي والواتساب)
+    try:
+        t_code = u_input if u_input.endswith(".CA") else f"{u_input}.CA"
+        s_data = yf.download(t_code, period="5d", progress=False)
+        if not s_data.empty:
+            l = s_data.iloc[-1]
+            p_val = l["Close"]
+            hi_val, lo_val = l["High"], l["Low"]
+            piv_val = (hi_val + lo_val + p_val) / 3
+            s1_val = (2 * piv_val) - hi_val
+            r1_val = (2 * piv_val) - lo_val
+            
+            st.markdown(f"""
+            <div style="background: #1e2732; padding: 25px; border-radius: 15px; border: 2px solid #3498db; text-align: center;">
+                <h2 style="color:white; margin-bottom:15px;">{u_input}</h2>
+                <div style="display: flex; justify-content: space-around; background: #0d1117; padding: 15px; border-radius: 10px;">
+                    <div><p style="color:#3498db; margin:0;">السعر</p><h3 style="margin:0;">{p_val:.3f}</h3></div>
+                    <div><p style="color:#f1c40f; margin:0;">الارتكاز</p><h3 style="margin:0;">{piv_val:.3f}</h3></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 20px; gap: 10px;">
+                    <div style="flex:1; background:#0d1117; padding:10px; border-radius:8px; border-bottom:3px solid #e74c3c;">
+                        <p style="color:#e74c3c; margin:0;">الدعم (شراء)</p><b>{s1_val:.3f}</b>
+                    </div>
+                    <div style="flex:1; background:#0d1117; padding:10px; border-radius:8px; border-bottom:3px solid #2ecc71;">
+                        <p style="color:#2ecc71; margin:0;">المقاومة (بيع)</p><b>{r1_val:.3f}</b>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    except:
+        st.error("تعذر جلب بيانات السهم.")
+
+# --- الإدخال اليدوي ---
+st.markdown("---")
+with st.expander("🛠️ الإدخال اليدوي (إذا كانت البيانات متأخرة)"):
+    m_p = st.number_input("السعر الآن", format="%.3f")
+    m_h = st.number_input("أعلى اليوم", format="%.3f")
+    m_l = st.number_input("أقل اليوم", format="%.3f")
+    if m_p > 0:
+        m_piv = (m_p + m_h + m_l) / 3
+        st.info(f"الارتكاز المحسوب يدوياً: {m_piv:.3f}")
