@@ -5,7 +5,7 @@ import urllib.parse
 # ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
-WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID", "ATQA"]
+WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID", "ATQA", "ALCN"]
 
 COMPANIES = {
     "TMGH": "طلعت مصطفى",
@@ -13,7 +13,8 @@ COMPANIES = {
     "ETEL": "المصرية للاتصالات",
     "SWDY": "السويدي إليكتريك",
     "EFID": "إيديتا",
-    "ATQA": "عتاقة"
+    "ATQA": "عتاقة",
+    "ALCN": "الأهلي لإدارة الأصول"
 }
 
 # ================== STYLE ==================
@@ -24,7 +25,6 @@ h1,h2,h3,p,label,span {color: #ffffff;}
 .stButton>button {background-color:#25D366;color:white;font-weight:bold;}
 .stTabs button {background-color:#161b22;color:white;font-weight:bold;}
 .card {background-color:#161b22; padding:20px; border-radius:15px; margin-bottom:20px;}
-.score {font-size:16px; font-weight:bold; color:#00ff99;}
 .whatsapp-btn {
     background: linear-gradient(135deg,#25D366,#128C7E);
     padding:12px;
@@ -36,6 +36,7 @@ h1,h2,h3,p,label,span {color: #ffffff;}
     display:block;
     margin-top:12px;
 }
+.ai-comment {color:#00ff99; font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,40 +94,45 @@ def confirmation_signal(p, s1, r1, rsi):
 
 # ================== AI SMART COMMENTS ==================
 def ai_comment_trader(p, s1):
-    return f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
+    entry = round(s1 + (p-s1)*0.1,2)
+    stop = round(s1 - (p-s1)*0.05,2)
+    score = 80
+    comment = f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f}"
+    return entry, stop, score, comment
 
 def ai_comment_swing(p, h, l):
-    mid = (h+l)/2
-    return f"🔁 حركة تصحيح داخل اتجاه عام قرب {mid:.2f}, مراقبة الارتداد مطلوبة."
+    entry = round((h+l)/2,2)
+    stop = round(l*0.99,2)
+    score = 85
+    comment = "🔁 مراقبة الارتداد داخل الاتجاه العام"
+    return entry, stop, score, comment
 
-def ai_comment_invest(p, s2):
-    return f"🏦 الاتجاه طويل الأجل إيجابي طالما أعلى {s2:.2f}."
-
-def calc_score(p, s1, s2, h, l):
-    trader = min(100, 50 + (20 if p - s1 < 0.02*s1 else 0))
-    swing = min(100, 60 + (50 - abs(50 - rsi_fake(p,h,l))))
-    invest = 80 if p > (h+l)/2 else 55
-    return trader, swing, invest
+def ai_comment_invest(p, l):
+    entry = round(l,2)
+    stop = round(l*0.95,2)
+    score = 90
+    comment = "🏦 اتجاه طويل الأجل إيجابي"
+    return entry, stop, score, comment
 
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
-    s1, s2, r1, r2 = pivots(p,h,l)
-    rsi = rsi_fake(p,h,l)
+    s1, s2, r1, r2 = pivots(p, h, l)
+    rsi = rsi_fake(p, h, l)
     liq = liquidity(v)
 
     rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
     conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
+
     rec = "انتظار"
     if conf_type == "buy":
         rec = "شراء"
     elif conf_type == "sell":
         rec = "بيع"
 
-    trader_score, swing_score, invest_score = calc_score(p, s1, s2, h, l)
-
-    trader_comment = ai_comment_trader(p, s1)
-    swing_comment = ai_comment_swing(p, h, l)
-    invest_comment = ai_comment_invest(p, s2)
+    # AI Smart Comments
+    t_entry, t_stop, t_score, t_comment = ai_comment_trader(p,s1)
+    s_entry, s_stop, s_score, s_comment = ai_comment_swing(p,h,l)
+    i_entry, i_stop, i_score, i_comment = ai_comment_invest(p,l)
 
     st.markdown(f"""
     <div class="card">
@@ -137,16 +143,40 @@ def show_report(code, p, h, l, v):
     🚧 المقاومة: {r1:.2f} / {r2:.2f}<br>
     💧 السيولة: {liq}<br>
     <hr>
-    🎯 <b>مضارب</b> ({trader_score}/100): {trader_comment} دخول {s1:.2f}, وقف خسارة {s1*0.97:.2f}<br>
-    🔁 <b>سوينج</b> ({swing_score}/100): {swing_comment} دخول {(h+l)/2:.2f}, وقف خسارة {s2:.2f}<br>
-    🏦 <b>مستثمر</b> ({invest_score}/100): {invest_comment} دخول {s2:.2f}, وقف خسارة {s2*0.95:.2f}<br>
-    <hr>
     🔄 {rev_txt}<br>
     ⚡ {conf_txt}<br>
+    <hr>
+    🎯 <b>المضارب:</b> {t_score}/100 | {t_comment}<br>
+    - دخول: {t_entry}, وقف خسارة: {t_stop}<br>
+    🔁 <b>السوينج:</b> {s_score}/100 | {s_comment}<br>
+    - دخول: {s_entry}, وقف خسارة: {s_stop}<br>
+    🏦 <b>المستثمر:</b> {i_score}/100 | {i_comment}<br>
+    - دخول: {i_entry}, وقف خسارة: {i_stop}<br>
     <hr>
     📌 التوصية: <b>{rec}</b>
     </div>
     """, unsafe_allow_html=True)
+
+    # WhatsApp message (optional)
+    wa_msg = f"""
+📊 تحليل سهم {code}
+💰 السعر: {p:.2f}
+📉 RSI: {rsi:.1f}
+🧱 الدعم: {s1:.2f}/{s2:.2f}
+🚧 المقاومة: {r1:.2f}/{r2:.2f}
+💧 السيولة: {liq}
+
+🔄 {rev_txt}
+⚡ {conf_txt}
+
+🎯 المضارب: دخول {t_entry}, وقف خسارة {t_stop}
+🔁 السوينج: دخول {s_entry}, وقف خسارة {s_stop}
+🏦 المستثمر: دخول {i_entry}, وقف خسارة {i_stop}
+
+📌 التوصية: {rec}
+"""
+    wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
+    st.markdown(f'<a href="{wa_url}" class="whatsapp-btn">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
 # ================== SCANNER ==================
 def scanner():
@@ -155,18 +185,21 @@ def scanner():
         p,h,l,v = get_data(s)
         if not p:
             continue
+
         s1, s2, r1, r2 = pivots(p,h,l)
         rsi = rsi_fake(p,h,l)
         liq = liquidity(v)
-
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
-        trader_comment = ai_comment_trader(p,s1)
-        swing_comment = ai_comment_swing(p,h,l)
-        invest_comment = ai_comment_invest(p,s2)
+        t_entry, t_stop, t_score, t_comment = ai_comment_trader(p,s1)
+        s_entry, s_stop, s_score, s_comment = ai_comment_swing(p,h,l)
+        i_entry, i_stop, i_score, i_comment = ai_comment_invest(p,l)
 
-        results.append(f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | {liq} | {rev_txt} | {conf_txt} | ⚡ المضارب: {trader_comment} | 🔁 سوينج: {swing_comment} | 🏦 مستثمر: {invest_comment}")
-
+        results.append(f"""
+{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | {liq}
+{rev_txt} | {conf_txt}
+🎯 المضارب: دخول {t_entry}, وقف خسارة {t_stop} | 🔁 السوينج: دخول {s_entry}, وقف خسارة {s_stop} | 🏦 المستثمر: دخول {i_entry}, وقف خسارة {i_stop}
+""")
     return results
 
 # ================== UI ==================
