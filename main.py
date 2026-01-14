@@ -120,11 +120,14 @@ def ai_score_comment(p, s1, s2, r1, r2, rsi):
 
 # ================== RECOMMENDATION ==================
 def make_recommendation(p, s1, r1, rsi):
+    # شراء عند الدعم و RSI منخفض
     if p <= s1 * 1.02 and rsi < 40:
         return "شراء"
+    # بيع عند المقاومة و RSI مرتفع
     elif p >= r1 * 0.98 and rsi > 60:
         return "بيع"
-    return "انتظار"
+    else:
+        return "انتظار"
 
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
@@ -134,6 +137,7 @@ def show_report(code, p, h, l, v):
 
     rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
     conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
+
     rec = make_recommendation(p, s1, r1, rsi)
 
     ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
@@ -191,17 +195,13 @@ def scanner():
         s1, s2, r1, r2 = pivots(p,h,l)
         rsi = rsi_fake(p,h,l)
         liq = liquidity(v)
-        ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
+
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
+        ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
         rec = make_recommendation(p, s1, r1, rsi)
 
-        result = (f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | "
-                  f"{rev_txt} | {conf_txt} | "
-                  f"🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | "
-                  f"🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | "
-                  f"🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']} | "
-                  f"📌 التوصية: {rec}")
+        result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']} | 📌 التوصية: {rec}"
         results.append(result)
 
     return results
