@@ -38,9 +38,6 @@ h1,h2,h3,p,label,span {color: #ffffff;}
     margin-top:12px;
 }
 hr {border: 1px solid #ffffff; margin:8px 0;}
-.green {color:#00ff99;}
-.red {color:#ff4d4d;}
-.gray {color:#cccccc;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -98,13 +95,15 @@ def confirmation_signal(p, s1, r1, rsi):
 
 # ================== AI COMMENTS + SCORES ==================
 def ai_score_comment(p, s1, s2, r1, r2, rsi):
-    # Score و Comment
+    # مضارب
     trader_score = min(100, 50 + (20 if rsi < 30 else 0) + (15 if abs(p - s1)/s1 < 0.02 else 0))
     trader_comment = f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
 
+    # سوينج
     swing_score = min(100, 60 + (50 - abs(50 - rsi)))
     swing_comment = "🔁 السهم في حركة تصحيح داخل اتجاه عام، مراقبة الارتداد مطلوبة."
 
+    # مستثمر
     invest_score = 80 if p > (r1+r2)/2 else 55
     invest_comment = "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
 
@@ -149,35 +148,15 @@ def show_report(code, p, h, l, v):
     ⚡ {conf_txt}<br>
     <hr>
     🎯 <b>المضارب:</b> {ai['trader']['score']}/100<br>
-    {ai['trader']['comment']}<br>دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}<br><br>
+    {ai['trader']['comment']} | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}<br>
     🔁 <b>السوينج:</b> {ai['swing']['score']}/100<br>
-    {ai['swing']['comment']}<br>دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}<br><br>
+    {ai['swing']['comment']} | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}<br>
     🏦 <b>المستثمر:</b> {ai['invest']['score']}/100<br>
-    {ai['invest']['comment']}<br>دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
+    {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
     <hr>
     📌 التوصية: <b>{rec}</b>
     </div>
     """, unsafe_allow_html=True)
-
-    wa_msg = f"""
-📊 تحليل سهم {code}
-💰 السعر: {p:.2f}
-📉 RSI: {rsi:.1f}
-🧱 الدعم: {s1:.2f} / {s2:.2f}
-🚧 المقاومة: {r1:.2f} / {r2:.2f}
-💧 السيولة: {liq}
-
-🔄 {rev_txt}
-⚡ {conf_txt}
-
-🎯 المضارب: {ai['trader']['score']}/100 | {ai['trader']['comment']} | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}
-🔁 السوينج: {ai['swing']['score']}/100 | {ai['swing']['comment']} | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}
-🏦 المستثمر: {ai['invest']['score']}/100 | {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}
-
-📌 التوصية: {rec}
-"""
-    wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
-    st.markdown(f'<a href="{wa_url}" class="whatsapp-btn">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
 # ================== SCANNER ==================
 def scanner():
@@ -194,18 +173,14 @@ def scanner():
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
         ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
-        # ترتيب البيانات بطريقة واضحة
-        result = f"""
-{s} - {COMPANIES.get(s,'')}
-💰 السعر: {p:.2f} | RSI: {rsi:.1f} | سيولة: {liq}
-🧱 الدعم: {s1:.2f}/{s2:.2f} | 🚧 المقاومة: {r1:.2f}/{r2:.2f}
-🔄 {rev_txt} | ⚡ {conf_txt}
-🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']}
-🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']}
-🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}
-"""
+        result = (
+            f"{s} | السعر: {p:.2f} | دعم: {s1:.2f}/{s2:.2f} | مقاومة: {r1:.2f}/{r2:.2f} | "
+            f"RSI: {rsi:.1f} | سيولة: {liq} | {rev_txt} | {conf_txt} | "
+            f"🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | "
+            f"🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | "
+            f"🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
+        )
         results.append(result)
-
     return results
 
 # ================== UI ==================
