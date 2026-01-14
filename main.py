@@ -35,8 +35,6 @@ h1,h2,h3,p,label,span {color: #ffffff;}
     display:block;
     margin-top:12px;
 }
-.green {color:#2ecc71;font-weight:bold;}
-.red {color:#e74c3c;font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,13 +75,23 @@ def liquidity(vol):
     else:
         return "سيولة ضعيفة"
 
+# ================== AI COMMENTS ==================
+def ai_trader_comment(p, s1):
+    return f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
+
+def ai_swing_comment():
+    return "🔁 السهم في حركة تصحيح داخل اتجاه عام، مراقبة الارتداد مطلوبة."
+
+def ai_invest_comment(p, h, l):
+    return "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
+
 # ================== REVERSAL & CONFIRMATION ==================
 def reversal_signal(p, s1, r1, rsi):
     if p <= s1 * 1.02 and rsi < 30:
         return "🟢 إشارة ارتداد صاعد", "up"
     if p >= r1 * 0.98 and rsi > 70:
         return "🔴 إشارة ارتداد هابط", "down"
-    return "لا توجد إشارة ارتداد", None
+    return "⚪ لا توجد إشارة ارتداد", None
 
 def confirmation_signal(p, s1, r1, rsi):
     if p > r1 and rsi > 50:
@@ -92,26 +100,31 @@ def confirmation_signal(p, s1, r1, rsi):
         return "🔴 تأكيد بيع بعد كسر دعم", "sell"
     return "⚪ لا يوجد تأكيد", None
 
-# ================== AI COMMENTS ==================
-def ai_comment_trader(p, s1):
-    entry = s1*1.01
-    stop = s1*0.98
-    return f"⚡ المضارب: دخول {entry:.2f}, وقف خسارة {stop:.2f}"
+# ================== CALCULATE SCORES & ENTRY ==================
+def calculate_scores(p, s1, s2, r1, r2, rsi):
+    # Trader
+    trader_score = min(100, 50 + (20 if rsi < 30 else 0) + (15 if abs(p - s1)/s1 < 0.02 else 0))
+    trader_entry = s1 * 1.01
+    trader_sl = s1 * 0.98
 
-def ai_comment_swing(p,h,l):
-    entry = (h+l)/2
-    stop = l
-    return f"🔁 السوينج: دخول {entry:.2f}, وقف خسارة {stop:.2f}"
+    # Swing
+    swing_score = min(100, 60 + (50 - abs(50 - rsi)))
+    swing_entry = (s1 + r1)/2
+    swing_sl = s1
 
-def ai_comment_invest(p,h,l):
-    entry = l
-    stop = l*0.95
-    return f"🏦 المستثمر: دخول {entry:.2f}, وقف خسارة {stop:.2f}"
+    # Invest
+    invest_score = 80 if p > (h+l)/2 else 55
+    invest_entry = (h+l)/2
+    invest_sl = s2
+
+    return (trader_score, trader_entry, trader_sl,
+            swing_score, swing_entry, swing_sl,
+            invest_score, invest_entry, invest_sl)
 
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
     s1, s2, r1, r2 = pivots(p, h, l)
-    rsi = rsi_fake(p,h,l)
+    rsi = rsi_fake(p, h, l)
     liq = liquidity(v)
 
     rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
@@ -122,6 +135,9 @@ def show_report(code, p, h, l, v):
         rec = "شراء"
     elif conf_type == "sell":
         rec = "بيع"
+
+    # حساب ال score و سعر الدخول و وقف الخسارة
+    trader_score, trader_entry, trader_sl, swing_score, swing_entry, swing_sl, invest_score, invest_entry, invest_sl = calculate_scores(p, s1, s2, r1, r2, rsi)
 
     st.markdown(f"""
     <div class="card">
@@ -134,14 +150,19 @@ def show_report(code, p, h, l, v):
     <hr>
     🔄 {rev_txt}<br>
     ⚡ {conf_txt}<br>
-    {ai_comment_trader(p,s1)}<br>
-    {ai_comment_swing(p,h,l)}<br>
-    {ai_comment_invest(p,h,l)}<br>
+    <hr>
+    🎯 <b>مضارب</b>: {trader_score}/100 | دخول: {trader_entry:.2f}, وقف خسارة: {trader_sl:.2f}<br>
+    {ai_trader_comment(p, s1)}<br><br>
+    🔁 <b>سوينج</b>: {swing_score}/100 | دخول: {swing_entry:.2f}, وقف خسارة: {swing_sl:.2f}<br>
+    {ai_swing_comment()}<br><br>
+    🏦 <b>مستثمر</b>: {invest_score}/100 | دخول: {invest_entry:.2f}, وقف خسارة: {invest_sl:.2f}<br>
+    {ai_invest_comment(p, h, l)}<br>
     <hr>
     📌 التوصية: <b>{rec}</b>
     </div>
     """, unsafe_allow_html=True)
 
+    # رسالة واتس
     wa_msg = f"""
 📊 تحليل سهم {code} - {COMPANIES.get(code,'')}
 💰 السعر: {p:.2f}
@@ -150,12 +171,12 @@ def show_report(code, p, h, l, v):
 🚧 المقاومة: {r1:.2f} / {r2:.2f}
 💧 السيولة: {liq}
 
-{rev_txt}
-{conf_txt}
+🔄 {rev_txt}
+⚡ {conf_txt}
 
-⚡ {ai_comment_trader(p,s1)}
-🔁 {ai_comment_swing(p,h,l)}
-🏦 {ai_comment_invest(p,h,l)}
+🎯 مضارب: دخول {trader_entry:.2f}, وقف خسارة {trader_sl:.2f}
+🔁 سوينج: دخول {swing_entry:.2f}, وقف خسارة {swing_sl:.2f}
+🏦 مستثمر: دخول {invest_entry:.2f}, وقف خسارة {invest_sl:.2f}
 
 📌 التوصية: {rec}
 """
@@ -177,13 +198,13 @@ def scanner():
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
 
-        trader_txt = ai_comment_trader(p,s1)
-        swing_txt = ai_comment_swing(p,h,l)
-        invest_txt = ai_comment_invest(p,h,l)
+        trader_score, trader_entry, trader_sl, swing_score, swing_entry, swing_sl, invest_score, invest_entry, invest_sl = calculate_scores(p, s1, s2, r1, r2, rsi)
 
-        display = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | {liq} | {rev_txt} | {conf_txt} | {trader_txt} | {swing_txt} | {invest_txt}"
-
-        results.append(display)
+        results.append(f"""
+{s} | السعر: {p:.2f} | دعم: {s1:.2f}/{s2:.2f} | مقاومة: {r1:.2f}/{r2:.2f} | RSI: {rsi:.1f} | سيولة: {liq}
+🔄 {rev_txt} | ⚡ {conf_txt}
+🎯 مضارب: دخول {trader_entry:.2f}, وقف خسارة {trader_sl:.2f} | 🔁 سوينج: دخول {swing_entry:.2f}, وقف خسارة {swing_sl:.2f} | 🏦 مستثمر: دخول {invest_entry:.2f}, وقف خسارة {invest_sl:.2f}
+""")
 
     return results
 
@@ -210,7 +231,7 @@ with tab2:
         show_report("MANUAL",p,h,l,v)
 
 with tab3:
-    st.subheader("🚨 إشارات ومعلومات كاملة لكل سهم")
+    st.subheader("🚨 إشارات مضاربية وسوينج ومستثمر")
     res = scanner()
     if res:
         for r in res:
