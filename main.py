@@ -118,6 +118,14 @@ def ai_score_comment(p, s1, s2, r1, r2, rsi):
         "invest": {"score": invest_score, "comment": invest_comment, "entry": invest_entry, "sl": invest_sl}
     }
 
+# ================== RECOMMENDATION ==================
+def make_recommendation(p, s1, r1, rsi):
+    if p <= s1 * 1.02 and rsi < 40:
+        return "شراء"
+    elif p >= r1 * 0.98 and rsi > 60:
+        return "بيع"
+    return "انتظار"
+
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
     s1, s2, r1, r2 = pivots(p, h, l)
@@ -126,12 +134,7 @@ def show_report(code, p, h, l, v):
 
     rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
     conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
-
-    rec = "انتظار"
-    if conf_type == "buy":
-        rec = "شراء"
-    elif conf_type == "sell":
-        rec = "بيع"
+    rec = make_recommendation(p, s1, r1, rsi)
 
     ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
@@ -158,6 +161,26 @@ def show_report(code, p, h, l, v):
     </div>
     """, unsafe_allow_html=True)
 
+    wa_msg = f"""
+📊 تحليل سهم {code}
+💰 السعر: {p:.2f}
+📉 RSI: {rsi:.1f}
+🧱 الدعم: {s1:.2f} / {s2:.2f}
+🚧 المقاومة: {r1:.2f} / {r2:.2f}
+💧 السيولة: {liq}
+
+🔄 {rev_txt}
+⚡ {conf_txt}
+
+🎯 المضارب: {ai['trader']['score']}/100 | {ai['trader']['comment']} | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}
+🔁 السوينج: {ai['swing']['score']}/100 | {ai['swing']['comment']} | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}
+🏦 المستثمر: {ai['invest']['score']}/100 | {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}
+
+📌 التوصية: {rec}
+"""
+    wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
+    st.markdown(f'<a href="{wa_url}" class="whatsapp-btn">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
+
 # ================== SCANNER ==================
 def scanner():
     results = []
@@ -168,19 +191,19 @@ def scanner():
         s1, s2, r1, r2 = pivots(p,h,l)
         rsi = rsi_fake(p,h,l)
         liq = liquidity(v)
-
+        ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
-        ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
+        rec = make_recommendation(p, s1, r1, rsi)
 
-        result = (
-            f"{s} | السعر: {p:.2f} | دعم: {s1:.2f}/{s2:.2f} | مقاومة: {r1:.2f}/{r2:.2f} | "
-            f"RSI: {rsi:.1f} | سيولة: {liq} | {rev_txt} | {conf_txt} | "
-            f"🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | "
-            f"🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | "
-            f"🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
-        )
+        result = (f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | "
+                  f"{rev_txt} | {conf_txt} | "
+                  f"🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | "
+                  f"🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | "
+                  f"🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']} | "
+                  f"📌 التوصية: {rec}")
         results.append(result)
+
     return results
 
 # ================== UI ==================
