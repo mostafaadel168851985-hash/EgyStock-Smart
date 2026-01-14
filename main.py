@@ -5,14 +5,15 @@ import urllib.parse
 # ================== CONFIG ==================
 st.set_page_config(page_title="🏹 EGX Sniper PRO", layout="wide")
 
-WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID"]
+WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID", "ATQA"]
 
 COMPANIES = {
     "TMGH": "طلعت مصطفى",
     "COMI": "البنك التجاري الدولي",
     "ETEL": "المصرية للاتصالات",
     "SWDY": "السويدي إليكتريك",
-    "EFID": "إيديتا"
+    "EFID": "إيديتا",
+    "ATQA": "عتاقة"
 }
 
 # ================== STYLE ==================
@@ -20,9 +21,9 @@ st.markdown("""
 <style>
 body, .stApp, .main {background-color: #0d1117; color: #ffffff;}
 h1,h2,h3,p,label,span {color: #ffffff;}
+.stButton>button {background-color:#25D366;color:white;font-weight:bold;}
 .stTabs button {background-color:#161b22;color:white;font-weight:bold;}
-.card {background-color:#161b22; padding:20px; border-radius:15px; margin-bottom:20px; color:white;}
-.score {font-size:24px; font-weight:bold; color:#00ff99;}
+.card {background-color:#161b22; padding:20px; border-radius:15px; margin-bottom:20px;}
 .whatsapp-btn {
     background: linear-gradient(135deg,#25D366,#128C7E);
     padding:12px;
@@ -34,6 +35,9 @@ h1,h2,h3,p,label,span {color: #ffffff;}
     display:block;
     margin-top:12px;
 }
+.badge-up {background:#2ecc71; color:white; padding:4px 10px; border-radius:12px;}
+.badge-down {background:#e74c3c; color:white; padding:4px 10px; border-radius:12px;}
+.badge-flat {background:#f1c40f; color:black; padding:4px 10px; border-radius:12px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,15 +65,6 @@ def pivots(p, h, l):
     r2 = piv + (h - l)
     return s1, s2, r1, r2
 
-def trend_status(p, h, l):
-    mid = (h + l) / 2
-    if p > mid * 1.01:
-        return "صاعد", "up"
-    elif p < mid * 0.99:
-        return "هابط", "down"
-    else:
-        return "عرضي", "flat"
-
 def rsi_fake(p, h, l):
     if h == l:
         return 50
@@ -83,90 +78,122 @@ def liquidity(vol):
     else:
         return "سيولة ضعيفة"
 
-# ================== AI COMMENTS ==================
-def ai_comment_trader(p, s1):
-    return f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
+# ================== REVERSAL & CONFIRMATION ==================
+def reversal_signal(p, s1, r1, rsi):
+    if p <= s1 * 1.02 and rsi < 30:
+        return "🟢 إشارة ارتداد صاعد", "up"
+    if p >= r1 * 0.98 and rsi > 70:
+        return "🔴 إشارة ارتداد هابط", "down"
+    return "لا توجد إشارة ارتداد", None
 
-def ai_comment_swing():
-    return "🔁 السهم في حركة تصحيح داخل اتجاه عام، مراقبة الارتداد مطلوبة."
+def confirmation_signal(p, s1, r1, rsi):
+    if p > r1 and rsi > 50:
+        return "🟢 تأكيد شراء بعد كسر مقاومة", "buy"
+    if p < s1 and rsi < 50:
+        return "🔴 تأكيد بيع بعد كسر دعم", "sell"
+    return "⚪ لا يوجد تأكيد", None
 
-def ai_comment_invest():
-    return "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
+# ================== AI الأذكى ==================
+def ai_scores(p, s1, r1, s2):
+    # مضارب
+    trader_score = min(100, 50 + (20 if p - s1 < 0.02*s1 else 0) + (15 if rsi_fake(p, r1, s2) < 30 else 0))
+    swing_score = min(100, 60 + (50 - abs(50 - rsi_fake(p, r1, s2))))
+    invest_score = 80 if p > (r1+s2)/2 else 55
 
-# ================== RECOMMENDATION ==================
-def make_recommendation(p, s1, r1, trend, rsi):
-    reasons = []
-    rec = "انتظار"
-    signal = ""
-    if p <= s1 * 1.02 and rsi < 40:
-        rec = "شراء"
-        signal = "ارتداد صعود"
-        reasons += ["قرب من دعم قوي", "RSI منخفض"]
-    elif p >= r1 * 0.98 and rsi > 70:
-        rec = "بيع"
-        signal = "ارتداد هبوط"
-        reasons += ["قرب من مقاومة", "RSI مرتفع"]
-    else:
-        signal = "لا يوجد"
-        reasons.append("لا توجد إشارة مكتملة")
-    reasons.append(f"الاتجاه العام: {trend}")
-    return rec, signal, reasons
+    # سعر الدخول و وقف الخسارة لكل واحد
+    trader_entry, trader_stop = s1, s2*0.99
+    swing_entry, swing_stop = (s1+r1)/2, s2
+    invest_entry, invest_stop = s1, s2
+
+    # AI comment
+    trader_comment = f"⚡ مناسب لمضاربة سريعة قرب {trader_entry:.2f} مع وقف عند {trader_stop:.2f}"
+    swing_comment = f"🔁 متابعة حركة سوينج قرب {swing_entry:.2f} مع وقف عند {swing_stop:.2f}"
+    invest_comment = f"🏦 متابعة الاستثمار طويل الأجل، الدخول حول {invest_entry:.2f} مع وقف عند {invest_stop:.2f}"
+
+    return (trader_score, trader_entry, trader_stop, trader_comment,
+            swing_score, swing_entry, swing_stop, swing_comment,
+            invest_score, invest_entry, invest_stop, invest_comment)
 
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
-    company = COMPANIES.get(code, "")
     s1, s2, r1, r2 = pivots(p, h, l)
-    trend, cls = trend_status(p, h, l)
     rsi = rsi_fake(p, h, l)
     liq = liquidity(v)
-    rec, signal, reasons = make_recommendation(p, s1, r1, trend, rsi)
 
-    trader_score = min(100, 50 + (20 if rsi < 30 else 0) + (15 if abs(p - s1)/s1 < 0.02 else 0))
-    swing_score = min(100, 60 + (50 - abs(50 - rsi)))
-    invest_score = 80 if p > (h+l)/2 else 55
+    rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
+    conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
+
+    rec = "انتظار"
+    if conf_type == "buy":
+        rec = "شراء"
+    elif conf_type == "sell":
+        rec = "بيع"
+
+    # AI الأذكى
+    (trader_score, trader_entry, trader_stop, trader_comment,
+     swing_score, swing_entry, swing_stop, swing_comment,
+     invest_score, invest_entry, invest_stop, invest_comment) = ai_scores(p, s1, r1, s2)
 
     st.markdown(f"""
     <div class="card">
-    <h3>{code} - {company}</h3>
+    <h3>{code} - {COMPANIES.get(code,'')}</h3>
     💰 السعر الحالي: {p:.2f}<br>
-    📉 RSI: {rsi:.1f} ({rec})<br>
+    📉 RSI: {rsi:.1f}<br>
     🧱 الدعم: {s1:.2f} / {s2:.2f}<br>
     🚧 المقاومة: {r1:.2f} / {r2:.2f}<br>
     💧 السيولة: {liq}<br>
     <hr>
     🎯 <b>مضارب</b>: {trader_score}/100<br>
-    {ai_comment_trader(p,s1)}<br><br>
+    {trader_comment}<br><br>
     🔁 <b>سوينج</b>: {swing_score}/100<br>
-    {ai_comment_swing()}<br><br>
+    {swing_comment}<br><br>
     🏦 <b>مستثمر</b>: {invest_score}/100<br>
-    {ai_comment_invest()}<br>
+    {invest_comment}<br>
     <hr>
-    📌 التوصية: {rec}<br>
-    ⚠️ إشارة ارتداد / تأكيد: {signal}
+    🔄 {rev_txt}<br>
+    ⚡ {conf_txt}<br>
+    <hr>
+    📌 التوصية: <b>{rec}</b>
     </div>
     """, unsafe_allow_html=True)
 
-    # WhatsApp message بسيط وآمن
-    whatsapp_msg = f"""
-📊 تحليل سهم {code} - {company}
+    # WhatsApp message (مبسّط لتجنب مشاكل)
+    wa_msg = f"""
+📊 تحليل سهم {code}
 💰 السعر: {p:.2f}
-📉 RSI: {rsi:.1f} ({rec})
-💧 السيولة: {liq}
-⚠️ إشارة ارتداد: {signal}
+📉 RSI: {rsi:.1f}
+🧱 الدعم: {s1:.2f} / {s2:.2f}
+🚧 المقاومة: {r1:.2f} / {r2:.2f}
+
+🎯 مضارب: {trader_score}/100 | دخول {trader_entry:.2f} | وقف {trader_stop:.2f}
+🔁 سوينج: {swing_score}/100 | دخول {swing_entry:.2f} | وقف {swing_stop:.2f}
+🏦 مستثمر: {invest_score}/100 | دخول {invest_entry:.2f} | وقف {invest_stop:.2f}
+
+🔄 {rev_txt}
+⚡ {conf_txt}
+
+📌 التوصية: {rec}
 """
-    wa_url = "https://wa.me/?text=" + urllib.parse.quote(whatsapp_msg)
-    st.markdown(f'<a href="{wa_url}" class="whatsapp-btn" target="_blank">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
+    wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
+    st.markdown(f'<a href="{wa_url}" class="whatsapp-btn">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
 
 # ================== SCANNER ==================
 def scanner():
     results = []
     for s in WATCHLIST:
         p,h,l,v = get_data(s)
-        if p:
-            s1, s2, r1, r2 = pivots(p,h,l)
-            rsi = rsi_fake(p,h,l)
-            rec, signal, _ = make_recommendation(p, s1, r1, *trend_status(p,h,l), rsi)
-            results.append(f"🚨 {s} ({COMPANIES.get(s,'')}) | سعر {p:.2f} | دعم {s1:.2f} | مقاومة {r1:.2f} | التوصية: {rec} | ارتداد: {signal}")
+        if not p:
+            continue
+        s1, s2, r1, r2 = pivots(p,h,l)
+        rsi = rsi_fake(p,h,l)
+        rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
+        conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
+        if conf_type == "buy":
+            results.append(f"🟢 BUY | {s} | كسر مقاومة {r1:.2f}")
+        elif conf_type == "sell":
+            results.append(f"🔴 SELL | {s} | كسر دعم {s1:.2f}")
+        elif rev_type:
+            results.append(f"⚪ WATCH | {s} | {rev_txt}")
     return results
 
 # ================== UI ==================
@@ -181,22 +208,21 @@ with tab1:
         if p:
             show_report(code,p,h,l,v)
         else:
-            st.error("⚠️ البيانات للسهم غير متاحة، استخدم التحليل اليدوي")
+            st.error("البيانات غير متاحة")
 
 with tab2:
-    st.subheader("🛠️ التحليل اليدوي")
-    p = st.number_input("سعر الإفتتاح اليوم", format="%.2f")
-    h = st.number_input("أعلى سعر اليوم", format="%.2f")
-    l = st.number_input("أقل سعر اليوم", format="%.2f")
-    v = st.number_input("عدد الأسهم المتداولة", value=0)
-    if p>0:
+    p = st.number_input("السعر", format="%.2f")
+    h = st.number_input("أعلى سعر", format="%.2f")
+    l = st.number_input("أقل سعر", format="%.2f")
+    v = st.number_input("السيولة")
+    if p > 0:
         show_report("MANUAL",p,h,l,v)
 
 with tab3:
-    st.subheader("🚨 فرص مضاربية قرب الدعم")
+    st.subheader("🚨 إشارات مؤكدة")
     res = scanner()
     if res:
         for r in res:
-            st.error(r)
+            st.info(r)
     else:
-        st.success("لا توجد فرص حالياً")
+        st.success("لا توجد إشارات حالياً")
