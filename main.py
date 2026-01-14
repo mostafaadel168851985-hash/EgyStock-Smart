@@ -5,7 +5,7 @@ import urllib.parse
 # ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
-WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID", "ATQA", "ALCN"]
+WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID", "ATQA", "ALCN", "RMDA"]
 
 COMPANIES = {
     "TMGH": "طلعت مصطفى",
@@ -14,7 +14,8 @@ COMPANIES = {
     "SWDY": "السويدي إليكتريك",
     "EFID": "إيديتا",
     "ATQA": "عتاقة",
-    "ALCN": "الأهلي لإدارة الأصول"
+    "ALCN": "ألكون",
+    "RMDA": "رمادا"
 }
 
 # ================== STYLE ==================
@@ -36,7 +37,7 @@ h1,h2,h3,p,label,span {color: #ffffff;}
     display:block;
     margin-top:12px;
 }
-.ai-comment {color:#00ff99; font-weight:bold;}
+hr {border: 1px solid #ffffff; margin:8px 0;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -83,7 +84,7 @@ def reversal_signal(p, s1, r1, rsi):
         return "🟢 إشارة ارتداد صاعد", "up"
     if p >= r1 * 0.98 and rsi > 70:
         return "🔴 إشارة ارتداد هابط", "down"
-    return "⚪ لا توجد إشارة ارتداد", None
+    return "لا توجد إشارة ارتداد", None
 
 def confirmation_signal(p, s1, r1, rsi):
     if p > r1 and rsi > 50:
@@ -92,27 +93,30 @@ def confirmation_signal(p, s1, r1, rsi):
         return "🔴 تأكيد بيع بعد كسر دعم", "sell"
     return "⚪ لا يوجد تأكيد", None
 
-# ================== AI SMART COMMENTS ==================
-def ai_comment_trader(p, s1):
-    entry = round(s1 + (p-s1)*0.1,2)
-    stop = round(s1 - (p-s1)*0.05,2)
-    score = 80
-    comment = f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f}"
-    return entry, stop, score, comment
+# ================== AI COMMENTS + SCORES ==================
+def ai_score_comment(p, s1, s2, r1, r2, rsi):
+    # مضارب
+    trader_score = min(100, 50 + (20 if rsi < 30 else 0) + (15 if abs(p - s1)/s1 < 0.02 else 0))
+    trader_comment = f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
 
-def ai_comment_swing(p, h, l):
-    entry = round((h+l)/2,2)
-    stop = round(l*0.99,2)
-    score = 85
-    comment = "🔁 مراقبة الارتداد داخل الاتجاه العام"
-    return entry, stop, score, comment
+    # سوينج
+    swing_score = min(100, 60 + (50 - abs(50 - rsi)))
+    swing_comment = "🔁 السهم في حركة تصحيح داخل اتجاه عام، مراقبة الارتداد مطلوبة."
 
-def ai_comment_invest(p, l):
-    entry = round(l,2)
-    stop = round(l*0.95,2)
-    score = 90
-    comment = "🏦 اتجاه طويل الأجل إيجابي"
-    return entry, stop, score, comment
+    # مستثمر
+    invest_score = 80 if p > (r1+r2)/2 else 55
+    invest_comment = "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
+
+    # دخول و وقف خسارة
+    trader_entry, trader_sl = round(s1+0.1,2), round(s1-0.15,2)
+    swing_entry, swing_sl = round((s1+r1)/2,2), round((s1+r1)/2-0.25,2)
+    invest_entry, invest_sl = round((s1+s2)/2,2), round(s2-0.25,2)
+
+    return {
+        "trader": {"score": trader_score, "comment": trader_comment, "entry": trader_entry, "sl": trader_sl},
+        "swing": {"score": swing_score, "comment": swing_comment, "entry": swing_entry, "sl": swing_sl},
+        "invest": {"score": invest_score, "comment": invest_comment, "entry": invest_entry, "sl": invest_sl}
+    }
 
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
@@ -129,10 +133,7 @@ def show_report(code, p, h, l, v):
     elif conf_type == "sell":
         rec = "بيع"
 
-    # AI Smart Comments
-    t_entry, t_stop, t_score, t_comment = ai_comment_trader(p,s1)
-    s_entry, s_stop, s_score, s_comment = ai_comment_swing(p,h,l)
-    i_entry, i_stop, i_score, i_comment = ai_comment_invest(p,l)
+    ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
     st.markdown(f"""
     <div class="card">
@@ -146,32 +147,31 @@ def show_report(code, p, h, l, v):
     🔄 {rev_txt}<br>
     ⚡ {conf_txt}<br>
     <hr>
-    🎯 <b>المضارب:</b> {t_score}/100 | {t_comment}<br>
-    - دخول: {t_entry}, وقف خسارة: {t_stop}<br>
-    🔁 <b>السوينج:</b> {s_score}/100 | {s_comment}<br>
-    - دخول: {s_entry}, وقف خسارة: {s_stop}<br>
-    🏦 <b>المستثمر:</b> {i_score}/100 | {i_comment}<br>
-    - دخول: {i_entry}, وقف خسارة: {i_stop}<br>
+    🎯 <b>المضارب:</b> {ai['trader']['score']}/100<br>
+    {ai['trader']['comment']} | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}<br>
+    🔁 <b>السوينج:</b> {ai['swing']['score']}/100<br>
+    {ai['swing']['comment']} | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}<br>
+    🏦 <b>المستثمر:</b> {ai['invest']['score']}/100<br>
+    {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
     <hr>
     📌 التوصية: <b>{rec}</b>
     </div>
     """, unsafe_allow_html=True)
 
-    # WhatsApp message (optional)
     wa_msg = f"""
 📊 تحليل سهم {code}
 💰 السعر: {p:.2f}
 📉 RSI: {rsi:.1f}
-🧱 الدعم: {s1:.2f}/{s2:.2f}
-🚧 المقاومة: {r1:.2f}/{r2:.2f}
+🧱 الدعم: {s1:.2f} / {s2:.2f}
+🚧 المقاومة: {r1:.2f} / {r2:.2f}
 💧 السيولة: {liq}
 
 🔄 {rev_txt}
 ⚡ {conf_txt}
 
-🎯 المضارب: دخول {t_entry}, وقف خسارة {t_stop}
-🔁 السوينج: دخول {s_entry}, وقف خسارة {s_stop}
-🏦 المستثمر: دخول {i_entry}, وقف خسارة {i_stop}
+🎯 المضارب: {ai['trader']['score']}/100 | {ai['trader']['comment']} | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}
+🔁 السوينج: {ai['swing']['score']}/100 | {ai['swing']['comment']} | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}
+🏦 المستثمر: {ai['invest']['score']}/100 | {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}
 
 📌 التوصية: {rec}
 """
@@ -185,21 +185,17 @@ def scanner():
         p,h,l,v = get_data(s)
         if not p:
             continue
-
         s1, s2, r1, r2 = pivots(p,h,l)
         rsi = rsi_fake(p,h,l)
         liq = liquidity(v)
+
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
-        t_entry, t_stop, t_score, t_comment = ai_comment_trader(p,s1)
-        s_entry, s_stop, s_score, s_comment = ai_comment_swing(p,h,l)
-        i_entry, i_stop, i_score, i_comment = ai_comment_invest(p,l)
+        ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
-        results.append(f"""
-{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | {liq}
-{rev_txt} | {conf_txt}
-🎯 المضارب: دخول {t_entry}, وقف خسارة {t_stop} | 🔁 السوينج: دخول {s_entry}, وقف خسارة {s_stop} | 🏦 المستثمر: دخول {i_entry}, وقف خسارة {i_stop}
-""")
+        result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
+        results.append(result)
+
     return results
 
 # ================== UI ==================
