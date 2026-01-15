@@ -118,17 +118,6 @@ def ai_score_comment(p, s1, s2, r1, r2, rsi):
         "invest": {"score": invest_score, "comment": invest_comment, "entry": invest_entry, "sl": invest_sl}
     }
 
-# ================== RECOMMENDATION ==================
-def make_recommendation(p, s1, r1, rsi):
-    # شراء عند الدعم و RSI منخفض
-    if p <= s1 * 1.02 and rsi < 40:
-        return "شراء"
-    # بيع عند المقاومة و RSI مرتفع
-    elif p >= r1 * 0.98 and rsi > 60:
-        return "بيع"
-    else:
-        return "انتظار"
-
 # ================== REPORT ==================
 def show_report(code, p, h, l, v):
     s1, s2, r1, r2 = pivots(p, h, l)
@@ -138,7 +127,11 @@ def show_report(code, p, h, l, v):
     rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
     conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
 
-    rec = make_recommendation(p, s1, r1, rsi)
+    rec = "انتظار"
+    if conf_type == "buy":
+        rec = "شراء"
+    elif conf_type == "sell":
+        rec = "بيع"
 
     ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
@@ -161,7 +154,11 @@ def show_report(code, p, h, l, v):
     🏦 <b>المستثمر:</b> {ai['invest']['score']}/100<br>
     {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
     <hr>
-    📌 التوصية: <b>{rec}</b>
+    📌 التوصية: <b>{rec}</b><br>
+    📝 <b>ملاحظة للمحبوس:</b><br>
+    السهم يتحرك داخل نطاق عرضي.<br>
+    أقرب دعم عند <b>{s1:.2f}</b> يليه دعم أقوى عند <b>{s2:.2f}</b>.<br>
+    طالما التداول أعلى هذه المناطق، يظل الاحتفاظ خيارًا ممكنًا مع المتابعة.
     </div>
     """, unsafe_allow_html=True)
 
@@ -181,6 +178,7 @@ def show_report(code, p, h, l, v):
 🏦 المستثمر: {ai['invest']['score']}/100 | {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}
 
 📌 التوصية: {rec}
+📝 ملاحظة للمحبوس: السهم يتحرك داخل نطاق عرضي. أقرب دعم عند {s1:.2f} يليه دعم أقوى عند {s2:.2f}. طالما التداول أعلى هذه المناطق، يظل الاحتفاظ خيارًا ممكنًا مع المتابعة.
 """
     wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
     st.markdown(f'<a href="{wa_url}" class="whatsapp-btn">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
@@ -199,9 +197,8 @@ def scanner():
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
         ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
-        rec = make_recommendation(p, s1, r1, rsi)
 
-        result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']} | 📌 التوصية: {rec}"
+        result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
         results.append(result)
 
     return results
