@@ -1,8 +1,6 @@
 import streamlit as st
 import requests
 import urllib.parse
-import pandas as pd
-import numpy as np
 
 # ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
@@ -178,6 +176,7 @@ def scanner():
 
         result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
         results.append(result)
+
     return results
 
 # ================== UI ==================
