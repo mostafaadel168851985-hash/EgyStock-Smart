@@ -1,14 +1,15 @@
 import streamlit as st
 import requests
 import urllib.parse
+import yfinance as yf
 import pandas as pd
+import pandas_ta as ta
 import numpy as np
 
 # ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
 WATCHLIST = ["TMGH", "COMI", "ETEL", "SWDY", "EFID", "ATQA", "ALCN", "RMDA"]
-
 COMPANIES = {
     "TMGH": "طلعت مصطفى",
     "COMI": "البنك التجاري الدولي",
@@ -44,9 +45,8 @@ hr {border: 1px solid #ffffff; margin:8px 0;}
 """, unsafe_allow_html=True)
 
 # ================== DATA ==================
-@st.cache_data(ttl=300)
-def get_data(symbol, n=100):
-    """جلب بيانات أساسية وأغلاق تاريخي للسهم"""
+@st.cache_data(ttl=60)
+def get_data_tradingview(symbol):
     try:
         url = "https://scanner.tradingview.com/egypt/scan"
         payload = {
@@ -55,13 +55,16 @@ def get_data(symbol, n=100):
         }
         r = requests.post(url, json=payload, timeout=10).json()
         d = r["data"][0]["d"]
-        # نرجع آخر سعر، أعلى، أقل، حجم
-        p, h, l, v = float(d[0]), float(d[1]), float(d[2]), float(d[3])
-        # بيانات تاريخية تجريبية للـ EMA و MACD (من نفس القيمة لتجنب crash)
-        hist = pd.Series([p for _ in range(n)])
-        return p, h, l, v, hist
+        return float(d[0]), float(d[1]), float(d[2]), float(d[3])
     except:
-        return None, None, None, None, pd.Series([])
+        return None, None, None, None
+
+def get_history_yahoo(symbol, period="6mo", interval="1d"):
+    try:
+        df = yf.download(f"{symbol}.CA", period=period, interval=interval)
+        return df
+    except:
+        return None
 
 # ================== INDICATORS ==================
 def pivots(p, h, l):
@@ -85,17 +88,6 @@ def liquidity(vol):
     else:
         return "سيولة ضعيفة"
 
-def ema(series, period=200):
-    return series.ewm(span=period, adjust=False).mean().iloc[-1]
-
-def macd(series, fast=12, slow=26, signal=9):
-    exp1 = series.ewm(span=fast, adjust=False).mean()
-    exp2 = series.ewm(span=slow, adjust=False).mean()
-    macd_line = exp1 - exp2
-    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-    return macd_line.iloc[-1], signal_line.iloc[-1]
-
-# ================== REVERSAL & CONFIRMATION ==================
 def reversal_signal(p, s1, r1, rsi):
     if p <= s1 * 1.02 and rsi < 30:
         return "🟢 إشارة ارتداد صاعد", "up"
@@ -110,54 +102,37 @@ def confirmation_signal(p, s1, r1, rsi):
         return "🔴 تأكيد بيع بعد كسر دعم", "sell"
     return "⚪ لا يوجد تأكيد", None
 
-# ================== AI COMMENTS + SCORES ==================
-def ai_score_comment(p, s1, s2, r1, r2, rsi, hist):
-    # EMA 200
-    ema200 = ema(hist)
-    macd_val, macd_signal = macd(hist)
-
-    # مضارب
+def ai_score_comment(p, s1, s2, r1, r2, rsi):
     trader_score = min(100, 50 + (20 if rsi < 30 else 0) + (15 if abs(p - s1)/s1 < 0.02 else 0))
     trader_comment = f"⚡ مناسب لمضاربة سريعة قرب الدعم {s1:.2f} مع الالتزام بوقف الخسارة."
-
-    # سوينج
     swing_score = min(100, 60 + (50 - abs(50 - rsi)))
     swing_comment = "🔁 السهم في حركة تصحيح داخل اتجاه عام، مراقبة الارتداد مطلوبة."
-
-    # مستثمر
-    invest_score = 80 if p > ema200 else 55
-    invest_comment = f"🏦 الاتجاه طويل الأجل {'إيجابي' if p>ema200 else 'سلبي'} وفق EMA 200."
-
-    # دخول و وقف خسارة
+    invest_score = 80 if p > (r1+r2)/2 else 55
+    invest_comment = "🏦 الاتجاه طويل الأجل إيجابي طالما السعر أعلى المتوسط 50 يوم."
     trader_entry, trader_sl = round(s1+0.1,2), round(s1-0.15,2)
     swing_entry, swing_sl = round((s1+r1)/2,2), round((s1+r1)/2-0.25,2)
     invest_entry, invest_sl = round((s1+s2)/2,2), round(s2-0.25,2)
-
     return {
         "trader": {"score": trader_score, "comment": trader_comment, "entry": trader_entry, "sl": trader_sl},
         "swing": {"score": swing_score, "comment": swing_comment, "entry": swing_entry, "sl": swing_sl},
-        "invest": {"score": invest_score, "comment": invest_comment, "entry": invest_entry, "sl": invest_sl},
-        "ema200": ema200,
-        "macd": (macd_val, macd_signal)
+        "invest": {"score": invest_score, "comment": invest_comment, "entry": invest_entry, "sl": invest_sl}
     }
 
 # ================== REPORT ==================
-def show_report(code, p, h, l, v, hist):
+def show_report(code, p, h, l, v):
     s1, s2, r1, r2 = pivots(p, h, l)
     rsi = rsi_fake(p, h, l)
     liq = liquidity(v)
-
     rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
     conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
-
     rec = "انتظار"
     if conf_type == "buy":
         rec = "شراء"
     elif conf_type == "sell":
         rec = "بيع"
+    ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
-    ai = ai_score_comment(p, s1, s2, r1, r2, rsi, hist)
-
+    # ================== HTML CARD ==================
     st.markdown(f"""
     <div class="card">
     <h3>{code} - {COMPANIES.get(code,'')}</h3>
@@ -166,8 +141,6 @@ def show_report(code, p, h, l, v, hist):
     🧱 الدعم: {s1:.2f} / {s2:.2f}<br>
     🚧 المقاومة: {r1:.2f} / {r2:.2f}<br>
     💧 السيولة: {liq}<br>
-    📈 EMA 200: {ai['ema200']:.2f}<br>
-    📊 MACD: {ai['macd'][0]:.2f}, خط الإشارة: {ai['macd'][1]:.2f}<br>
     <hr>
     🔄 {rev_txt}<br>
     ⚡ {conf_txt}<br>
@@ -179,7 +152,7 @@ def show_report(code, p, h, l, v, hist):
     🏦 <b>المستثمر:</b> {ai['invest']['score']}/100<br>
     {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
     <hr>
-    📌 التوصية: <b>{rec}</b>
+    📌 التوصية: <b>{rec}</b><br>
     📝 <b>ملحوظة للمحبوس:</b> أقرب دعم {s1:.2f}, دعم أقوى {s2:.2f}. متابعة الأسعار أمر مهم.
     </div>
     """, unsafe_allow_html=True)
@@ -188,7 +161,7 @@ def show_report(code, p, h, l, v, hist):
 def scanner():
     results = []
     for s in WATCHLIST:
-        p,h,l,v,hist = get_data(s)
+        p,h,l,v = get_data_tradingview(s)
         if not p:
             continue
         s1, s2, r1, r2 = pivots(p,h,l)
@@ -196,28 +169,21 @@ def scanner():
         liq = liquidity(v)
         rev_txt, rev_type = reversal_signal(p, s1, r1, rsi)
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
-        ai = ai_score_comment(p, s1, s2, r1, r2, rsi, hist)
-
-        result = (f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | "
-                  f"RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | "
-                  f"🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | "
-                  f"🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | "
-                  f"🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}")
+        ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
+        result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
         results.append(result)
-
     return results
 
 # ================== UI ==================
 st.title("🏹 EGX Sniper PRO")
-
 tab1, tab2, tab3 = st.tabs(["📡 التحليل الآلي", "🛠️ التحليل اليدوي", "🚨 Scanner"])
 
 with tab1:
     code = st.text_input("ادخل كود السهم").upper().strip()
     if code:
-        p,h,l,v,hist = get_data(code)
+        p,h,l,v = get_data_tradingview(code)
         if p:
-            show_report(code,p,h,l,v,hist)
+            show_report(code,p,h,l,v)
         else:
             st.error("البيانات غير متاحة")
 
@@ -227,8 +193,7 @@ with tab2:
     l = st.number_input("أقل سعر", format="%.2f")
     v = st.number_input("السيولة")
     if p > 0:
-        hist = pd.Series([p]*100)
-        show_report("MANUAL",p,h,l,v,hist)
+        show_report("MANUAL",p,h,l,v)
 
 with tab3:
     st.subheader("🚨 إشارات الأسهم")
