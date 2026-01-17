@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
 import urllib.parse
+import pandas as pd
+import numpy as np
 
 # ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
@@ -138,38 +140,27 @@ def show_report(code, p, h, l, v):
     st.markdown(f"""
     <div class="card">
     <h3>{code} - {COMPANIES.get(code,'')}</h3>
-
     💰 السعر الحالي: {p:.2f}<br>
     📉 RSI: {rsi:.1f}<br>
     🧱 الدعم: {s1:.2f} / {s2:.2f}<br>
     🚧 المقاومة: {r1:.2f} / {r2:.2f}<br>
     💧 السيولة: {liq}<br>
-
     <hr>
     🔄 {rev_txt}<br>
     ⚡ {conf_txt}<br>
     <hr>
-
     🎯 <b>المضارب:</b> {ai['trader']['score']}/100<br>
-    ⚡ {ai['trader']['comment']}<br>
-    | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}<br>
-
+    {ai['trader']['comment']} | دخول: {ai['trader']['entry']}, وقف خسارة: {ai['trader']['sl']}<br>
     🔁 <b>السوينج:</b> {ai['swing']['score']}/100<br>
-    🔁 {ai['swing']['comment']}<br>
-    | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}<br>
-
+    {ai['swing']['comment']} | دخول: {ai['swing']['entry']}, وقف خسارة: {ai['swing']['sl']}<br>
     🏦 <b>المستثمر:</b> {ai['invest']['score']}/100<br>
-    🏦 {ai['invest']['comment']}<br>
-    | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
-
+    {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}<br>
     <hr>
     📌 التوصية: <b>{rec}</b><br>
-
     📝 <b>ملحوظة للمحبوس:</b><br>
     السهم يتحرك داخل نطاق عرضي.<br>
     أقرب دعم عند <b>{s1:.2f}</b> يليه دعم أقوى عند <b>{s2:.2f}</b>.<br>
-    طالما التداول أعلى هذه المناطق،<br>
-    يظل الاحتفاظ خيارًا ممكنًا مع المتابعة.
+    طالما التداول أعلى هذه المناطق، يظل الاحتفاظ خيارًا ممكنًا مع المتابعة.
     </div>
     """, unsafe_allow_html=True)
 
@@ -189,7 +180,6 @@ def show_report(code, p, h, l, v):
 🏦 المستثمر: {ai['invest']['score']}/100 | {ai['invest']['comment']} | دخول: {ai['invest']['entry']}, وقف خسارة: {ai['invest']['sl']}
 
 📌 التوصية: {rec}
-📝 ملحوظة للمحبوس: السهم يتحرك داخل نطاق عرضي. أقرب دعم عند {s1:.2f} يليه دعم أقوى عند {s2:.2f}.
 """
     wa_url = "https://wa.me/?text=" + urllib.parse.quote(wa_msg)
     st.markdown(f'<a href="{wa_url}" class="whatsapp-btn">📲 مشاركة التحليل على واتساب</a>', unsafe_allow_html=True)
@@ -209,14 +199,9 @@ def scanner():
         conf_txt, conf_type = confirmation_signal(p, s1, r1, rsi)
         ai = ai_score_comment(p, s1, s2, r1, r2, rsi)
 
-        result = f"""
-{s} | السعر: {p:.2f} | دعم: {s1:.2f}/{s2:.2f} | مقاومة: {r1:.2f}/{r2:.2f} | RSI: {rsi:.1f} | سيولة: {liq}
-{rev_txt} | {conf_txt}
-🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']}
-🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']}
-🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}
-"""
+        result = f"{s} | السعر {p:.2f} | دعم {s1:.2f}/{s2:.2f} | مقاومة {r1:.2f}/{r2:.2f} | RSI {rsi:.1f} | سيولة {liq} | {rev_txt} | {conf_txt} | 🎯 المضارب: دخول {ai['trader']['entry']}, وقف خسارة {ai['trader']['sl']} | 🔁 السوينج: دخول {ai['swing']['entry']}, وقف خسارة {ai['swing']['sl']} | 🏦 المستثمر: دخول {ai['invest']['entry']}, وقف خسارة {ai['invest']['sl']}"
         results.append(result)
+
     return results
 
 # ================== UI ==================
