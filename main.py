@@ -1,8 +1,8 @@
 import streamlit as st
-st.title("🔥 NEW VERSION 999")
-import requests
-import pandas as pd
 
+st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
+
+st.title("🔥 NEW VERSION 999")
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
 # ================== STOCKS ==================
