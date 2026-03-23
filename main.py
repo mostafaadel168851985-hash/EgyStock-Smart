@@ -2,8 +2,16 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# لازم يكون أول حاجة
+# ================== CONFIG ==================
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
+
+# ================== STYLE ==================
+st.markdown("""
+<style>
+body {background-color:#0e1117;}
+.block-container {padding-top:1rem;}
+</style>
+""", unsafe_allow_html=True)
 
 st.title("🏹 EGX Sniper PRO")
 
@@ -60,7 +68,6 @@ def show_report(code,p,h,l,v):
     rsi = rsi_fake(p,h,l)
     liq = liquidity(v)
 
-    # Signals
     if p <= s1 * 1.02 and rsi < 30:
         signal = "🟢 إشارة ارتداد صاعد"
     else:
@@ -77,12 +84,12 @@ def show_report(code,p,h,l,v):
         background:#161b22;
         padding:25px;
         border-radius:15px;
-        color:white;
-        font-size:16px;
-        line-height:1.8;
+        color:#ffffff;
+        font-size:17px;
+        line-height:2;
     ">
 
-    <h3>{code}</h3>
+    <h2 style="color:white;">{code}</h2>
 
     💰 السعر الحالي: {p:.2f}<br>
     📉 RSI: {rsi:.1f}<br>
@@ -98,20 +105,23 @@ def show_report(code,p,h,l,v):
 
     <hr>
 
-    🎯 المضارب: {trader_score}/100<br>
+    🎯 <b>المضارب:</b> {trader_score}/100<br>
+    ⚡ مناسب لمضاربة قرب الدعم {s1:.2f}<br>
     دخول: {round(s1+0.1,2)} | وقف خسارة: {round(s1-0.15,2)}<br><br>
 
-    🔁 السوينج: {swing_score}/100<br>
+    🔁 <b>السوينج:</b> {swing_score}/100<br>
+    🔁 السهم في تصحيح داخل اتجاه عام<br>
     دخول: {round((s1+r1)/2,2)} | وقف خسارة: {round((s1+r1)/2-0.25,2)}<br><br>
 
-    🏦 المستثمر: {investor_score}/100<br>
+    🏦 <b>المستثمر:</b> {investor_score}/100<br>
+    🏦 الاتجاه طويل الأجل إيجابي<br>
     دخول: {round((s1+s2)/2,2)} | وقف خسارة: {round(s2-0.25,2)}<br>
 
     <hr>
 
-    📌 التوصية: <b>انتظار</b><br>
+    📌 <b>التوصية:</b> انتظار<br>
 
-    📝 ملحوظة للمحبوس:<br>
+    📝 <b>ملحوظة للمحبوس:</b><br>
     أقرب دعم {s1:.2f} - دعم أقوى {s2:.2f}
 
     </div>
@@ -150,9 +160,6 @@ def scanner():
             "الحالة":signal
         })
 
-    if len(rows) == 0:
-        return pd.DataFrame()
-
     return pd.DataFrame(rows)
 
 # ================== UI ==================
@@ -181,7 +188,6 @@ with tab2:
 # Scanner
 with tab3:
     df = scanner()
-
     if df.empty:
         st.warning("لا توجد بيانات حالياً")
     else:
