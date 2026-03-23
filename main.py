@@ -4,6 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
+# ====== STOCKS ======
 WATCHLIST = ["TMGH","COMI","ETEL","SWDY","EFID","ATQA","ALCN","RMDA"]
 ALL_STOCKS = WATCHLIST + ["ORAS","FWRY","AMOC","HELI","PHDC","MNHD","EKHO"]
 
@@ -18,55 +19,25 @@ COMPANIES = {
     "RMDA": "رمادا"
 }
 
-# ================= STYLE =================
+# ====== STYLE ======
 st.markdown("""
 <style>
 body, .stApp {
     background-color:#0d1117;
-    color:#ffffff !important;
+    color:white;
 }
-
-/* CARD */
 .card {
     background:#161b22;
-    padding:30px;
-    border-radius:20px;
-    font-size:18px;
-    line-height:1.9;
-    color:#ffffff !important;
-}
-
-/* HEAD */
-.card h2 {
-    color:#ffffff;
-    font-size:28px;
-}
-
-/* TABS */
-.stTabs [role="tab"] {
-    background:#161b22;
-    padding:12px 20px;
-    border-radius:12px;
-    margin-right:8px;
-    color:#bbb !important;
-    font-weight:bold;
-}
-
-.stTabs [aria-selected="true"] {
-    background:#ff4b4b !important;
-    color:white !important;
-}
-
-/* RADIO */
-div[role="radiogroup"] label {
-    color:white !important;
-    font-weight:bold;
+    padding:25px;
+    border-radius:15px;
     font-size:17px;
+    line-height:1.8;
 }
+h2 {color:white;}
 </style>
 """, unsafe_allow_html=True)
 
-# ================= DATA =================
+# ====== DATA ======
 @st.cache_data(ttl=300)
 def get_data(symbol):
     try:
@@ -81,7 +52,7 @@ def get_data(symbol):
     except:
         return None,None,None,None
 
-# ================= CALC =================
+# ====== CALC ======
 def pivots(p,h,l):
     piv=(p+h+l)/3
     s1=(2*piv)-h
@@ -99,68 +70,57 @@ def liquidity(v):
     elif v>500000: return "سيولة متوسطة"
     else: return "سيولة ضعيفة"
 
-# ================= AI =================
-def ai_analysis(p,s1,s2,r1,r2,rsi):
+# ====== AI ======
+def ai_block(p,s1,s2,r1,r2,rsi):
+    trader = min(100,50+(20 if rsi<30 else 0))
+    swing = min(100,60+(50-abs(50-rsi)))
+    investor = 80 if p>s1 else 55
 
-    trader_score = min(100,50 + (20 if rsi<30 else 0))
-    swing_score = min(100,60 + (50-abs(50-rsi)))
-    investor_score = 80 if p > s1 else 55
+    return trader,swing,investor
 
-    trader_comment = f"⚡ مناسب لمضاربة قرب الدعم {round(s1,2)}"
-    swing_comment = "🔁 السهم في تصحيح داخل اتجاه عام"
-    investor_comment = "🏦 الاتجاه إيجابي طالما أعلى الدعم"
-
-    return trader_score,swing_score,investor_score,trader_comment,swing_comment,investor_comment
-
-# ================= REPORT =================
+# ====== REPORT ======
 def show_report(code,p,h,l,v):
-
     s1,s2,r1,r2 = pivots(p,h,l)
     rsi = rsi_fake(p,h,l)
     liq = liquidity(v)
 
-    t,s,i,tc,sc,ic = ai_analysis(p,s1,s2,r1,r2,rsi)
+    t,s,i = ai_block(p,s1,s2,r1,r2,rsi)
 
     st.markdown(f"""
     <div class="card">
 
     <h2>{code} - {COMPANIES.get(code,'')}</h2>
 
-    💰 السعر: {p:.2f}<br>
-    📉 RSI: {rsi:.1f}<br>
+    💰 السعر: {p:.2f}  
+    📉 RSI: {rsi:.1f}  
 
-    🧱 الدعم: {s1:.2f} / {s2:.2f}<br>
-    🚧 المقاومة: {r1:.2f} / {r2:.2f}<br>
-    💧 السيولة: {liq}<br>
+    🧱 الدعم: {s1:.2f} / {s2:.2f}  
+    🚧 المقاومة: {r1:.2f} / {r2:.2f}  
+    💧 السيولة: {liq}  
 
-    <hr>
+    ---------------------
 
-    🎯 <b>المضارب:</b> {t}/100  
-    {tc}<br>
-    دخول: {round(s1+0.1,2)} | وقف: {round(s1-0.15,2)}<br><br>
+    🎯 المضارب: {t}/100  
+    دخول: {round(s1+0.1,2)} | وقف: {round(s1-0.15,2)}  
 
-    🔁 <b>السوينج:</b> {s}/100  
-    {sc}<br>
-    دخول: {round((s1+r1)/2,2)} | وقف: {round((s1+r1)/2-0.25,2)}<br><br>
+    🔁 السوينج: {s}/100  
+    دخول: {round((s1+r1)/2,2)} | وقف: {round((s1+r1)/2-0.25,2)}  
 
-    🏦 <b>المستثمر:</b> {i}/100  
-    {ic}<br>
-    دخول: {round((s1+s2)/2,2)} | وقف: {round(s2-0.25,2)}<br>
+    🏦 المستثمر: {i}/100  
+    دخول: {round((s1+s2)/2,2)} | وقف: {round(s2-0.25,2)}  
 
-    <hr>
+    ---------------------
 
-    📌 التوصية: <b>انتظار</b><br>
+    📌 التوصية: انتظار  
 
-    📝 <b>ملحوظة للمحبوس:</b>  
-    أقرب دعم {s1:.2f} ثم {s2:.2f}
+    📝 المحبوس: أقرب دعم {s1:.2f} ثم {s2:.2f}
 
     </div>
     """, unsafe_allow_html=True)
 
-# ================= SCANNER =================
+# ====== SCANNER ======
 def scanner():
     rows=[]
-
     for s in ALL_STOCKS:
         p,h,l,v = get_data(s)
         if not p: continue
@@ -172,11 +132,11 @@ def scanner():
         dist = abs(p-s1)/p*100
 
         if dist<1:
-            status="🔥 لاصق"
+            signal="🔥 لاصق"
         elif dist<2:
-            status="🟢 قريب"
+            signal="🟢 قريب"
         else:
-            status="⚪ بعيد"
+            signal="⚪ بعيد"
 
         rows.append({
             "السهم":s,
@@ -185,16 +145,17 @@ def scanner():
             "الدعم":round(s1,2),
             "المقاومة":round(r1,2),
             "السيولة":liq,
-            "الدعم":status
+            "وضع الدعم":signal
         })
 
     return pd.DataFrame(rows)
 
-# ================= UI =================
+# ====== UI ======
 st.title("🏹 EGX Sniper PRO")
 
-tab1,tab2,tab3 = st.tabs(["📡 التحليل الآلي","🛠️ التحليل اليدوي","🚨 Scanner"])
+tab1,tab2,tab3 = st.tabs(["تحليل سهم","يدوي","Scanner"])
 
+# ===== AUTO =====
 with tab1:
     code = st.text_input("ادخل كود السهم").upper()
     if code:
@@ -202,6 +163,7 @@ with tab1:
         if p:
             show_report(code,p,h,l,v)
 
+# ===== MANUAL =====
 with tab2:
     p = st.number_input("السعر")
     h = st.number_input("أعلى سعر")
@@ -211,15 +173,15 @@ with tab2:
     if p>0:
         show_report("MANUAL",p,h,l,v)
 
+# ===== SCANNER =====
 with tab3:
     df = scanner()
 
-    option = st.radio("فلترة:",["الكل","سوينج","مضاربة"])
+    opt = st.radio("فلتر:",["الكل","سوينج","مضاربة"])
 
-    if option=="سوينج":
+    if opt=="سوينج":
         df = df[(df["RSI"]>=40)&(df["RSI"]<=65)]
-
-    elif option=="مضاربة":
+    elif opt=="مضاربة":
         df = df[(df["RSI"]>70)]
 
     st.dataframe(df,use_container_width=True)
