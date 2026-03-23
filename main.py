@@ -3,8 +3,6 @@ import streamlit as st
 st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
 
 st.title("🔥 NEW VERSION 999")
-st.set_page_config(page_title="EGX Sniper PRO", layout="wide")
-
 # ================== STOCKS ==================
 WATCHLIST = ["TMGH","COMI","ETEL","SWDY","EFID","ATQA","ALCN","RMDA"]
 ALL_STOCKS = WATCHLIST + ["ORAS","FWRY","AMOC","HELI","PHDC","MNHD","EKHO"]
