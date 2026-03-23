@@ -23,7 +23,6 @@ COMPANIES = {
 st.markdown("""
 <style>
 
-/* خلفية */
 body, .stApp {
     background-color: #0d1117;
     color: #ffffff;
@@ -31,46 +30,34 @@ body, .stApp {
 
 /* الكارت */
 .card {
-    background: linear-gradient(145deg,#161b22,#1f2630);
-    padding:30px;
-    border-radius:18px;
-    margin-bottom:25px;
+    background: #161b22;
+    padding:25px;
+    border-radius:20px;
+    margin-bottom:20px;
     font-size:18px;
-    line-height:1.9;
-    color:#ffffff;
+    line-height:1.8;
 }
 
-/* العنوان */
-.card h3 {
-    font-size:28px;
-    margin-bottom:15px;
-    color:#ffffff;
-}
-
-/* Tabs */
+/* Tabs مودرن */
 .stTabs [role="tab"] {
-    font-size:18px;
-    color:#ffffff !important;
-    font-weight:bold;
+    background-color:#161b22;
+    border-radius:12px;
     padding:10px 20px;
-    border-radius:10px;
+    margin-right:10px;
+    font-weight:bold;
+    color:#aaa !important;
 }
 
 .stTabs [aria-selected="true"] {
-    background-color:#25D366 !important;
-    color:black !important;
+    background-color:#ff4b4b !important;
+    color:white !important;
 }
 
 /* Radio */
 div[role="radiogroup"] label {
-    font-size:18px !important;
-    color:#ffffff !important;
+    font-size:17px !important;
+    color:white !important;
     font-weight:bold;
-}
-
-/* الجدول */
-.stDataFrame {
-    font-size:16px;
 }
 
 </style>
@@ -113,26 +100,22 @@ def liquidity(v):
     else:
         return "سيولة ضعيفة"
 
-# ================== SCORE ==================
-def scores(p,s1,rsi):
-    trader = 50 + (20 if rsi<30 else 0) + (15 if abs(p-s1)/p <0.02 else 0)
-    swing = 60 + (50-abs(50-rsi))
-    investor = 80 if p > s1 else 55
-    return min(trader,100), min(swing,100), investor
-
 # ================== REPORT ==================
 def show_report(code,p,h,l,v):
     s1,s2,r1,r2 = pivots(p,h,l)
     rsi = rsi_fake(p,h,l)
     liq = liquidity(v)
 
-    trader_score, swing_score, invest_score = scores(p,s1,rsi)
+    trader_score = min(100, 50 + (20 if rsi < 30 else 0))
+    swing_score = min(100, 60 + (50 - abs(50 - rsi)))
+    invest_score = 80 if p > s1 else 55
 
     st.markdown(f"""
     <div class="card">
-    <h3>{code} - {COMPANIES.get(code,'')}</h3>
 
-    💰 السعر الحالي: {p:.2f}<br>
+    <h2>{code} - {COMPANIES.get(code,'')}</h2>
+
+    💰 السعر: {p:.2f}<br>
     📉 RSI: {rsi:.1f}<br>
 
     🧱 الدعم: {s1:.2f} / {s2:.2f}<br>
@@ -155,8 +138,8 @@ def show_report(code,p,h,l,v):
     📌 التوصية: <b>انتظار</b><br>
 
     📝 <b>ملحوظة للمحبوس:</b>  
-    أقرب دعم {s1:.2f} ثم {s2:.2f}  
-    طالما السعر أعلى هذه المناطق → الاحتفاظ ممكن
+    أقرب دعم {s1:.2f} ثم {s2:.2f}
+
     </div>
     """, unsafe_allow_html=True)
 
@@ -176,9 +159,9 @@ def scanner():
         dist = abs(p - s1) / p * 100
 
         if dist < 1:
-            signal = "🔥 قريب جدًا"
+            signal = "🔥 لاصق في الدعم"
         elif dist < 2:
-            signal = "🟢 قريب"
+            signal = "🟢 قريب من الدعم"
         else:
             signal = "⚪ بعيد"
 
@@ -189,7 +172,7 @@ def scanner():
             "الدعم": round(s1,2),
             "المقاومة": round(r1,2),
             "السيولة": liq,
-            "من الدعم": f"{round(dist,2)}% {signal}"
+            "وضع الدعم": signal
         })
 
     return pd.DataFrame(rows)
